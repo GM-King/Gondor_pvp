@@ -1,26 +1,191 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Gondor PvP — Answer the call</title>
-  <meta name="description" content="A PvP collection and guild assistance addon for Gondor Calls for Raid on WoW Forever. Download the beta and answer your guild's call.">
-  <meta name="theme-color" content="#101815">
-  <link rel="icon" href="beacon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gondor PvP — Gondor Calls for Raid</title>
+<meta name="description" content="Collect cards, rally your guildmates and earn points for showing up. The Gondor PvP field guide, by Kingpin, Doctor of War.">
+<meta name="theme-color" content="#171615">
+<link rel="icon" href="assets/guild-logo.png">
+<link rel="stylesheet" href="style.css">
+<script src="script.js" defer>
+</script>
 </head>
 <body>
-  <a class="skip" href="#main">Skip to content</a>
-  <header><a class="brand" href="#"><span aria-hidden="true">♜</span> GONDOR <small>PvP</small></a><nav aria-label="Main navigation"><a href="#features">The addon</a><a href="#install">Installation</a><a href="https://github.com/GM-King/Gondor_pvp">GitHub ↗</a></nav></header>
-  <main id="main">
-    <section class="hero">
-      <div class="intro"><p class="eyebrow">GONDOR CALLS FOR RAID · WOW FOREVER</p><h1>When the beacon<br>burns, <em>answer.</em></h1><p class="lead">Turn your honorable kills into a collection. Rally your guild when the fight finds you. Make every journey to a guildmate count.</p><a class="button" href="https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.1-beta/Gondor_PvP.zip">Download Gondor PvP <span>↓</span><small>0.9.1 beta · 75.0 MiB ZIP</small></a><p class="compat">WoW Forever · Interface 16001 · No required addon dependencies</p></div>
-      <figure><img src="beacon.svg" alt="A golden signal fire burns on a stone tower above dark mountain ridges"><figcaption>ONE SIGNAL. A GUILD AT YOUR SIDE.</figcaption></figure>
-    </section>
-    <section class="features" id="features"><div class="section-title"><p class="eyebrow">EARN YOUR PLACE IN THE STORY</p><h2>The fight is better together.</h2></div><div class="columns"><article><span class="number">01 / COLLECT</span><h3>A collection earned in battle.</h3><p>Lifetime honorable kills unlock 69 cards, from your first milestone at 5 kills to your final unlock at 1,000. Your existing kills count. Discover each card in your in-game binder as you earn it.</p></article><article><span class="number">02 / RALLY</span><h3>Send the call. Find your allies.</h3><p>Opt in to PvP death alerts or request help through Kill Share. Guildmates can accept your request and follow your location. Incoming offers and death alerts are off by default.</p></article><article><span class="number">03 / ASSIST</span><h3>Show up. Earn PvP Points.</h3><p>Complete a Kill Share by meeting your guildmate in game. Helpers earn points based on travel distance, with a limit on repeat rewards from the same requester. Track your tally per character.</p></article></div></section>
-    <section id="install" class="install"><div><p class="eyebrow">READY TO ANSWER?</p><h2>Join the fight<br>in a few minutes.</h2><p>Download the player ZIP above, then follow these steps.</p><a class="text-link" href="https://github.com/GM-King/Gondor_pvp/releases/tag/v0.9.1-beta">Release notes &amp; download details ↗</a></div><ol><li><h3>Extract the addon</h3><p>Place the extracted <code>Gondor_PvP</code> folder inside your Forever <code>Interface/AddOns</code> directory. The <code>Gondor_PvP.toc</code> file should sit directly inside that folder.</p></li><li><h3>Enable it and open your binder</h3><p>Enable Gondor PvP at character selection. In game, type <code>/gpvp</code> or left-click the murloc minimap button.</p></li><li><h3>Choose how you rally</h3><p>Open Settings to opt in to death alerts and incoming Kill Share offers. Type <code>/gpvp request</code> to ask for help or <code>/gpvp settings</code> to adjust your preferences.</p></li></ol></section>
-    <aside class="beta"><strong>Adventure in progress · Beta 0.9.1</strong><p>Offline checks pass. Live-client gameplay verification is pending. Death detection, channel delivery, map pins and precise positioning need testing in Forever. Share your findings through <a href="https://github.com/GM-King/Gondor_pvp/issues">GitHub Issues</a>.</p></aside>
-  </main>
-  <footer><span>GONDOR PvP <small>For Gondor Calls for Raid.</small></span><a href="https://github.com/GM-King/Gondor_pvp">Source &amp; feedback ↗</a></footer>
+<a class="skip" href="#main">Skip to content</a>
+<header class="wrap">
+<a class="brand" href="#main" aria-label="Gondor Calls for Raid home">
+<img src="assets/guild-logo.png" width="52" height="52" alt="">
+<span>GONDOR<small>CALLS FOR RAID</small>
+</span>
+</a>
+<nav aria-label="Main navigation">
+<a href="#guide">Field guide</a>
+<a href="#install">Install</a>
+<a href="https://github.com/GM-King/Gondor_pvp">GitHub ↗</a>
+</nav>
+</header>
+<main id="main">
+<section class="hero wrap" aria-labelledby="title">
+<div class="hero-copy">
+<p class="eyebrow">● HORDE GUILD · WOW FOREVER</p>
+<img class="wordmark" src="assets/guild-wordmark.png" alt="Gondor Calls for Raid">
+<h1 id="title">Gondor <em>PvP.</em>
+</h1>
+<p class="byline">By <strong>Kingpin</strong> <span>/ Doctor of War</span>
+</p>
+<p class="lead">Collect cards from honorable kills. Rally your guildmates. Earn points for showing up when the fight finds them.</p>
+<div class="actions">
+<a class="button" href="https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.1-beta/Gondor_PvP.zip">Download beta <span aria-hidden="true">↓</span>
+</a>
+<a href="#guide">How to play ↘</a>
+</div>
+<p class="meta">WoW Forever · 0.9.1 beta · 75.0 MiB</p>
+</div>
+<div class="sergeant-stage">
+<div class="speech" aria-hidden="true">
+<span id="roast-text">You there. Yes, you.</span>
+</div>
+<p id="announcement" class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+</p>
+<button id="sergeant" aria-label="Get another roast from the drill sergeant" aria-describedby="prompt">
+<img src="assets/drill-sergeant.png" width="1199" height="1312" alt="A yelling low-poly orc drill sergeant bursts through a jagged tear in the page">
+</button>
+<p id="prompt">↖ Click for a bollocking</p>
+<noscript>
+<p class="meta">The sergeant’s roasts need JavaScript.</p>
+</noscript>
+</div>
+</section>
+<div class="strip">
+<div class="wrap">
+<span>THE GONDOR FIELD MANUAL</span>
+<span>01 / COLLECT</span>
+<span>02 / RALLY</span>
+<span>03 / SHOW UP</span>
+</div>
+</div>
+<section class="install wrap" id="install">
+<div>
+<p class="eyebrow">BEFORE YOU CHARGE IN</p>
+<h2>Get battle-ready.</h2>
+<p>One download. Your guild at your back.</p>
+</div>
+<ol>
+<li>
+<strong>Extract the ZIP</strong>
+<p>Put the <code>Gondor_PvP</code> folder in your Forever client’s <code>Interface/AddOns</code> folder. The <code>Gondor_PvP.toc</code> file belongs directly inside it.</p>
+</li>
+<li>
+<strong>Enable at character selection</strong>
+<p>Open <strong>AddOns</strong>, enable <strong>Gondor PvP</strong>, then enter the game.</p>
+</li>
+<li>
+<strong>Open your binder</strong>
+<p>Type <code>/gpvp</code> or left-click the murloc minimap button. Right-click the button to open Settings.</p>
+</li>
+</ol>
+</section>
+<section class="guide wrap" id="guide">
+<div class="section-heading">
+<div>
+<p class="eyebrow">YOUR ORDERS, NICE AND SIMPLE</p>
+<h2>From first kill to backup.</h2>
+</div>
+<p>Learn the buttons here.<br>Earn the stories out there.</p>
+</div>
+<article class="guide-row">
+<div>
+<span class="step">01 / COLLECT</span>
+<h3>Your kills.<br>Your collection.</h3>
+<p>Your existing lifetime honorable kills count. The first card unlocks at <strong>5 kills</strong>, with <strong>69 cards</strong> to earn through 1,000 kills.</p>
+<p>Open your binder with <code>/gpvp</code>. Click an unlocked card to inspect it, then use <strong>Previous</strong> and <strong>Next</strong> to browse. The rest stay a surprise.</p>
+<aside class="note">Start here → Open <strong>Settings</strong> and choose <strong>PvP death alerts</strong> and <strong>Incoming Kill Share offers</strong>. Both start off.</aside>
+</div>
+<figure>
+<a href="assets/binder.png" data-preview>
+<img src="assets/binder.png" width="780" height="680" loading="lazy" alt="Zero-kill binder with eight locked question-mark slots and Kill Share, Points, and Settings buttons">
+</a>
+<figcaption>Offline addon preview <span>Card binder · Click to enlarge ↗</span>
+</figcaption>
+</figure>
+</article>
+<article class="guide-row reverse">
+<div>
+<span class="step">02 / CALL FOR BACKUP</span>
+<h3>Bad odds?<br>Make some noise.</h3>
+<p>In the binder, choose <strong>Kill Share → Request help</strong>, or type <code>/gpvp request</code>. Your responding guildmates appear in the Kill Share panel.</p>
+<p>With death alerts enabled, a PvP death can send the call too. If the client needs confirmation, answer the prompt.</p>
+<aside class="note">Change of plans? <strong>Withdraw request</strong> ends your own call. <strong>Cancel my fare</strong> ends the help job you accepted.</aside>
+</div>
+<figure>
+<a class="small-preview" href="assets/kill-share.png" data-preview>
+<img src="assets/kill-share.png" width="430" height="400" loading="lazy" alt="Kill Share panel showing an active fare, two responding guildmates, and Request help and cancellation buttons">
+</a>
+<figcaption>Offline addon preview <span>Kill Share · Click to enlarge ↗</span>
+</figcaption>
+</figure>
+</article>
+<article class="guide-row">
+<div>
+<span class="step">03 / ANSWER THE CALL</span>
+<h3>See the offer.<br>Be the backup.</h3>
+<p>Enable <strong>Incoming Kill Share offers</strong> in Settings. Each popup shows who needs help, their location, and the potential points.</p>
+<p>Select <strong>Accept</strong> and follow the requester’s map pin. You can help one accepted fare at a time.</p>
+<aside class="note">Offer too quick? In Settings, adjust its expiry from <strong>5 to 60 seconds</strong>. The default is 15.</aside>
+</div>
+<figure>
+<a class="offer-preview" href="assets/offer.png" data-preview>
+<img src="assets/offer.png" width="370" height="190" loading="lazy" alt="PvP help request for Thrall in Durotar, quoting 15 points, with Accept and Dismiss buttons">
+</a>
+<figcaption>Offline addon preview <span>Incoming offer · Click to enlarge ↗</span>
+</figcaption>
+</figure>
+</article>
+<article class="finish">
+<span class="step">04 / SHOW UP</span>
+<div>
+<h3>Close the distance. Earn your points.</h3>
+<p>Meet alive, in the same phase, and within <strong>five feet</strong>. If the addon cannot identify you automatically, <strong>target each other</strong>. The helper can check the completed fare and tally under <strong>Points</strong> in the binder.</p>
+<p>Rewards depend on travel distance. Repeat rewards from the same requester are limited to once every ten minutes. If precise positioning is unavailable, the fare stays pending.</p>
+</div>
+<span class="finish-mark" aria-hidden="true">↗</span>
+</article>
+</section>
+<section class="beta wrap">
+<div>
+<p class="eyebrow">BETA 0.9.1</p>
+<h2>Still sharpening the axe.</h2>
+</div>
+<div>
+<p>Offline checks pass. Live-client gameplay verification is pending. Death detection, channel delivery, map pins, and precise positioning need testing in Forever.</p>
+<div class="links">
+<a href="https://github.com/GM-King/Gondor_pvp/releases/tag/v0.9.1-beta">Release notes ↗</a>
+<a href="https://github.com/GM-King/Gondor_pvp/issues">Report an issue ↗</a>
+</div>
+</div>
+</section>
+<section class="sorting">
+<div class="wrap">
+<div>
+<p class="eyebrow">BEFORE YOUR NEXT CHARACTER</p>
+<h2>The Horde has a place for you.</h2>
+<p>Let the Gondor Sorting Hat help you find it.</p>
+</div>
+<a class="button" href="https://gondor-sorting-hat.daniel-miks.workers.dev/">Choose your Horde race and class <span aria-hidden="true">↗</span>
+</a>
+</div>
+</section>
+</main>
+<footer class="wrap">
+<span>FOR GONDOR. FOR THE HORDE.</span>
+<p>Gondor PvP · Kingpin, Doctor of War</p>
+<a href="https://github.com/GM-King/Gondor_pvp">Source &amp; feedback ↗</a>
+</footer>
+<dialog id="image-dialog" aria-label="Enlarged offline addon preview">
+<button id="close-preview" autofocus>Close preview ×</button>
+<img id="large-preview" alt="">
+<p>Offline addon preview</p>
+</dialog>
 </body>
 </html>

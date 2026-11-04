@@ -25,3 +25,7 @@
 !/docs/style.css
 !/docs/beacon.svg
 !/docs/.nojekyll
+
+!/docs/script.js
+!/docs/assets/
+!/docs/assets/**
