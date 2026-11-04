@@ -231,6 +231,7 @@ local function receipt(id, requester, amount)
     local previous=GP.db.pairs[key(requester)] or GP.db.pairs[shortKey(requester)]
     if not GP.Fares.PairEligible(previous, now()) then amount = 0 end
     GP.db.receipts[id] = { requester=requester, amount=amount, time=now() }
+    if GP.Recovery then GP.Recovery.BackupReceipt(id,GP.db.receipts[id]) end
     if amount > 0 then GP.db.pairs[key(requester)] = now() end
     GP.Print("Kill Share completed: +" .. amount .. " PvP Points.")
     if GP.UI then GP.UI.Refresh() end

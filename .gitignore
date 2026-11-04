@@ -29,3 +29,5 @@
 !/docs/script.js
 !/docs/assets/
 !/docs/assets/**
+
+!/Recovery.lua

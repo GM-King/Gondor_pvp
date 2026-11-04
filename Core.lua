@@ -78,10 +78,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
     elseif event ~= "ADDON_LOADED" and GP.db then
         if event == "PLAYER_LOGIN" then GP.Map.Initialize(); GP.Network.Initialize(); GP.UI.BuildMinimap() end
         GP.Network.OnEvent(event, ...)
+        if GP.Recovery then GP.Recovery.OnEvent(event, ...) end
         if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_PVP_KILLS_CHANGED" or event == "CHAT_MSG_COMBAT_HONOR_GAIN" or event == "GUILD_ROSTER_UPDATE" then
             GP.Cards.Refresh()
             if event == "PLAYER_LOGIN" then
-                scheduleCardRefresh(1); scheduleCardRefresh(5)
+                scheduleCardRefresh(1); scheduleCardRefresh(5); scheduleCardRefresh(15); scheduleCardRefresh(30)
             elseif event == "PLAYER_PVP_KILLS_CHANGED" or event == "CHAT_MSG_COMBAT_HONOR_GAIN" then
                 scheduleCardRefresh(0.25); scheduleCardRefresh(1)
             end
@@ -90,6 +91,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
 end)
 frame:SetScript("OnUpdate", function(_, elapsed)
     if GP.db and GP.Network then GP.Network.Update(elapsed) end
+    if GP.db and GP.Recovery then GP.Recovery.Update(elapsed) end
 end)
 
 SLASH_GONDORPVP1 = "/gpvp"

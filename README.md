@@ -6,7 +6,7 @@ A PvP card binder and guild help system for **Gondor Calls for Raid** on WoW For
 
 ## Download
 
-**[Download Gondor PvP 0.9.1 beta (75.0 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.1-beta/Gondor_PvP.zip)**
+**[Download Gondor PvP 0.9.2 beta (75.0 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.2-beta/Gondor_PvP.zip)**
 
 Visit the [Gondor PvP website](https://gm-king.github.io/Gondor_pvp/) for installation instructions and an overview.
 
@@ -39,7 +39,18 @@ To complete a fare, both characters must be alive, in the same phase, within fiv
 
 Points are a non-spendable tally earned only for fulfilled Kill Shares. The offer quotes the reward at acceptance from straight-line travel distance: 10–20 points in the same zone, 21–49 in a different zone on the same continent, and 50 on a different continent. A helper earns points from the same requester at most once every ten minutes. A repeat fare can still be fulfilled for zero points.
 
-Points and card presentation records are saved per character. The addon rejects duplicate completions and checks guild membership and proximity, but a player who controls their local addon files can alter local data. No addon-only mechanism can make those files tamper-proof.
+Points and card presentation records are saved per character. Guild receipt backups provide recovery when an updated guildmate has a copy. The addon rejects duplicate completions and checks guild membership and proximity, but a player who controls their local addon files can alter local data. No addon-only mechanism can make those files tamper-proof.
+
+
+## Updates, reinstalls and a second computer
+
+Replacing or deleting only Interface/AddOns/Gondor_PvP preserves WoW's separate character save. Existing settings, card reveals and fare points load again after reinstalling. Cards now unlock for every character from the game-reported lifetime honorable kills, including characters outside the guild. A fresh character save reveals all earned cards in order, one at a time as you close each card.
+
+Version 0.9.2 automatically backs up completed fare receipts through other guild members running this version. Existing receipts are shared when you upgrade. Online guildmates keep account-wide copies separately from their own points. On login, the addon asks for your character's missing receipts and repeats the request about every two minutes. Restored receipts merge with your local history without counting a fare twice. The Points panel shows your known balance and whether a guild backup has responded. Kill Share still requires Gondor Calls for Raid membership.
+
+Before changing computers or discarding a save, run the update on the original computer alongside an updated guildmate and allow the backup transfer to finish. Recovery requires a guildmate who received a copy to come online again. Fare history is shared within the guild. Settings, card presentation history and active fares stay in your own character save. These peer copies are trusted guild data and are editable local files.
+
+For an independent backup, exit WoW completely and copy WTF/Account/<account>/<realm>/<character>/SavedVariables/Gondor_PvP.lua to the corresponding character directory on the other computer. Copy the account-level WTF/Account/<account>/SavedVariables/Gondor_PvP.lua too if you want to transfer guild backup copies. Keep both files outside the game folder as a backup. If every copy of a fare receipt is lost, honorable kills cannot restore its points.
 
 ## Commands
 

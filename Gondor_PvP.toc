@@ -2,7 +2,8 @@
 ## Title: Gondor PvP
 ## Notes: Guild PvP collection and assistance
 ## Author: Gondor Calls for Raid
-## Version: 0.9.1-beta
+## Version: 0.9.2-beta
+## SavedVariables: GondorPvPBackups
 ## SavedVariablesPerCharacter: GondorPvPCharacter
 
 Libs\LibStub.lua
@@ -14,5 +15,6 @@ Fares.lua
 CardCatalog.lua
 Cards.lua
 Network.lua
+Recovery.lua
 Map.lua
 UI.lua

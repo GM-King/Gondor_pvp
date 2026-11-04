@@ -17,11 +17,9 @@ function Cards.Refresh()
     local kills = Cards.GetKills()
     if not kills then return end
     Cards.kills = kills
-    if GP.IsEligibleGuild() then
-        for index, threshold in ipairs(Cards.thresholds) do
-            if kills >= threshold and not GP.db.presented[index] and not GP.db.pendingCards[index] then
-                GP.db.pendingCards[index] = true
-            end
+    for index, threshold in ipairs(Cards.thresholds) do
+        if kills >= threshold and not GP.db.presented[index] and not GP.db.pendingCards[index] then
+            GP.db.pendingCards[index] = true
         end
     end
     if GP.UI then GP.UI.Refresh(); GP.UI.ShowNextAward() end

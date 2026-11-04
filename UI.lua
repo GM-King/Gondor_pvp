@@ -249,6 +249,7 @@ function UI.ShowPoints()
     end
     table.sort(rows,function(a,b) return a.time>b.time end)
     local lines={"Recent completed Kill Shares:"}
+    if GP.Recovery then table.insert(lines,1,GP.Recovery.Status()) end
     for i=1,math.min(10,#rows) do
         local r=rows[i]; lines[#lines+1]=string.format("%s   +%d points",r.requester,r.amount)
     end
@@ -371,5 +372,5 @@ end
 
 function UI.Toggle()
     UI.Build()
-    if UI.frame:IsShown() then UI.frame:Hide() else UI.Refresh(); UI.frame:Show() end
+    if UI.frame:IsShown() then UI.frame:Hide() else GP.Cards.Refresh(); UI.Refresh(); UI.frame:Show() end
 end
