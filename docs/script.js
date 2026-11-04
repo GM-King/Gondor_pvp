@@ -8,6 +8,19 @@
     'You found the download button. A fucking tactical breakthrough!'
   ];
   const text = document.getElementById('roast-text');
+  const speech = text.parentElement;
+  function fitSpeech(line) {
+    const visibleText = text.textContent;
+    text.textContent = line;
+    const style = getComputedStyle(speech);
+    const availableHeight = speech.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+    let size = 48;
+    speech.style.fontSize = `${size}px`;
+    while (size > 20 && text.scrollHeight > availableHeight) {
+      speech.style.fontSize = `${--size}px`;
+    }
+    text.textContent = visibleText;
+  }
   const announcement = document.getElementById('announcement');
   const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
   let bag = [];
@@ -32,6 +45,7 @@
     }
     current = bag.pop();
     last = current;
+    fitSpeech(current);
     announcement.textContent = current;
     text.textContent = '';
     if (motion.matches) {
@@ -48,6 +62,12 @@
   motion.addEventListener('change', () => {
     if (motion.matches && current) finishLine();
   });
+  function refitSpeech() {
+    fitSpeech(current || text.textContent);
+  }
+  refitSpeech();
+  window.addEventListener('resize', refitSpeech);
+  document.fonts.ready.then(refitSpeech);
   const dialog = document.getElementById('image-dialog');
   const large = document.getElementById('large-preview');
   if (typeof dialog.showModal === 'function') {

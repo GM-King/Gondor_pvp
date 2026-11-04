@@ -189,8 +189,15 @@ h3 {
   background:var(--ink);
   color:#241b15;
   transform:rotate(-2deg);
-  font:700 23px/1.15 Barlow Condensed,Impact,sans-serif;
+  display:flex;
+  align-items:center;
+  font:700 48px/1.05 Barlow Condensed,Impact,sans-serif;
   box-shadow:5px 6px 0 #050505
+}
+#roast-text {
+  display:block;
+  width:100%;
+  min-width:0;
 }
 .speech:after {
   content:'';
@@ -554,7 +561,7 @@ dialog p {
     padding-block:36px
   }
   .speech {
-    font-size:22px
+    font-size:32px
   }
   figure {
     padding:14px
@@ -585,7 +592,7 @@ dialog p {
     font-size:64px
   }
   .speech {
-    font-size:20px
+    font-size:28px
   }
 }
 @media(prefers-reduced-motion:reduce) {
