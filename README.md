@@ -6,7 +6,7 @@ A PvP card binder and guild help system for **Gondor Calls for Raid** on WoW For
 
 ## Download
 
-**[Download Gondor PvP 0.9.2 beta (75.0 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.2-beta/Gondor_PvP.zip)**
+**[Download Gondor PvP 0.9.3 beta (75.0 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.3-beta/Gondor_PvP.zip)**
 
 Visit the [Gondor PvP website](https://gm-king.github.io/Gondor_pvp/) for installation instructions and an overview.
 
@@ -46,7 +46,7 @@ Points and card presentation records are saved per character. Guild receipt back
 
 Replacing or deleting only Interface/AddOns/Gondor_PvP preserves WoW's separate character save. Existing settings, card reveals and fare points load again after reinstalling. Cards now unlock for every character from the game-reported lifetime honorable kills, including characters outside the guild. A fresh character save reveals all earned cards in order, one at a time as you close each card.
 
-Version 0.9.2 automatically backs up completed fare receipts through other guild members running this version. Existing receipts are shared when you upgrade. Online guildmates keep account-wide copies separately from their own points. On login, the addon asks for your character's missing receipts and repeats the request about every two minutes. Restored receipts merge with your local history without counting a fare twice. The Points panel shows your known balance and whether a guild backup has responded. Kill Share still requires Gondor Calls for Raid membership.
+Version 0.9.3 automatically backs up completed fare receipts through other guild members running this version. Existing receipts are shared when you upgrade. Online guildmates keep account-wide copies separately from their own points. On login, the addon asks for your character's missing receipts and repeats the request about every two minutes. Restored receipts merge with your local history without counting a fare twice. The Points panel shows your known balance and whether a guild backup has responded. Kill Share still requires Gondor Calls for Raid membership.
 
 Before changing computers or discarding a save, run the update on the original computer alongside an updated guildmate and allow the backup transfer to finish. Recovery requires a guildmate who received a copy to come online again. Fare history is shared within the guild. Settings, card presentation history and active fares stay in your own character save. These peer copies are trusted guild data and are editable local files.
 

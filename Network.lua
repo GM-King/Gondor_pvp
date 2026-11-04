@@ -8,6 +8,12 @@ local function safe2(fn,...)
     local ok,a,b=pcall(fn,...)
     if ok then return a,b end
 end
+function N.InInstance()
+    if type(IsInInstance)~="function" then return false end
+    local inside,kind=safe2(IsInInstance)
+    if not clean(inside) or not clean(kind) then return true end
+    return inside~=false or (kind~=nil and kind~="none")
+end
 local function now()
     local value=safe2(GetServerTime)
     if clean(value) and type(value)=="number" then return value end
@@ -74,6 +80,7 @@ local function split(s)
     return t
 end
 local function send(kind, parts, target)
+    if N.InInstance() and kind~="X" and kind~="Z" and kind~="K" then return false end
     if not GP.IsEligibleGuild() or not C_ChatInfo or not C_ChatInfo.SendAddonMessage then return false end
     local payload = kind .. "~" .. table.concat(parts, "~")
     if #payload > 240 then return false end
@@ -126,6 +133,7 @@ local function zone(map)
     return clean(name) and type(name)=="string" and name or "Unknown zone"
 end
 local function showDeferredOffers()
+    if N.InInstance() then return end
     if N.active or not GP.db.settings.offers then return end
     for token,offer in pairs(N.offers) do
         if offer.deferred then
@@ -347,8 +355,10 @@ function N.Initialize()
     elseif request~=nil then
         GP.db.outgoingRequest=nil; GP.Print("A saved request could not be restored.")
     end
+    N.CheckInstance()
 end
 function N.Request(manual, death)
+    if N.InInstance() then GP.Print("Kill Share is disabled in instances."); return false end
     if not GP.IsEligibleGuild() then GP.Print("Kill Share is available to Gondor Calls for Raid members."); return false end
     if manual and now() < (GP.db.manualReadyAt or 0) then GP.Print("Request available in " .. math.ceil(((GP.db.manualReadyAt or 0)-now())/60) .. " min."); return false end
     local map, x, y
@@ -397,6 +407,7 @@ function N.Request(manual, death)
     return true
 end
 function N.Accept(id)
+    if N.InInstance() then GP.Print("Kill Share is disabled in instances."); return false end
     if N.active then GP.Print("Cancel or complete your current fare first."); return false end
     local offer = N.offers[id]
     if not offer or now() >= offer.expires then GP.Print("That request has expired."); return false end
@@ -458,6 +469,24 @@ function N.CancelRequest()
     N.request=nil; GP.db.outgoingRequest=nil; GP.Print("Request withdrawn.")
 end
 
+function N.CheckInstance()
+    local blocked=N.InInstance()
+    if blocked and not N.suspended then
+        N.suspended=true
+        N.offers={}; N.buffered={}; N.seenRequests={}
+        N.deathSerial=(N.deathSerial or 0)+1
+        N.deathPosition=nil; N.lastAlive=nil
+        if GP.UI.ClearOffers then GP.UI.ClearOffers() end
+        if StaticPopup_Hide then pcall(StaticPopup_Hide,"GONDOR_PVP_DEATH") end
+        if N.active then N.CancelFare() end
+        if N.request then N.CancelRequest() end
+        GP.Map.Clear()
+    elseif not blocked then
+        N.suspended=false
+    end
+    return blocked
+end
+
 -- Forever's recap may arrive after PLAYER_DEAD. Inspect only accessible flags:
 -- hostile player attacks and hostile player-controlled pets/guardians count.
 local function hasFlag(flags, mask)
@@ -509,6 +538,7 @@ local function classifyRecap(deathAt)
 end
 
 local function inspectDeath(serial, attempt, deathAt)
+    if N.InInstance() then return end
     if serial ~= N.deathSerial or not GP.db.settings.alerts or not GP.IsEligibleGuild() then return end
     local result = classifyRecap(deathAt)
     if result == "pvp" then
@@ -530,6 +560,7 @@ local function onMessage(message,sender,distribution)
     sender=resolved
     local p=split(message)
     local kind,id=p[1],p[2]
+    if N.InInstance() and kind~="X" and kind~="Z" and kind~="K" then return end
     if not id or #id>40 or not id:match("^%d+%-%d+$") then return end
     if kind == "R" and distribution == "GUILD" and GP.db.settings.offers then
         local alreadyActive=N.active and N.active.id==id and same(sender,N.active.requester)
@@ -703,6 +734,11 @@ local function onMessage(message,sender,distribution)
     end
 end
 function N.OnEvent(event,...)
+    if N.CheckInstance() then
+        if event~="CHAT_MSG_ADDON" then return end
+        local _,message=...
+        if not clean(message) or type(message)~="string" or not message:match("^[XZK]~") then return end
+    end
     if event=="CHAT_MSG_ADDON" then
         local pre,msg,distribution,sender=...
         if clean(pre) and clean(msg) and clean(distribution) and clean(sender) and pre==prefix then
@@ -754,6 +790,7 @@ function N.OnEvent(event,...)
     elseif event=="PLAYER_ALIVE" or event=="PLAYER_UNGHOST" then N.wasDead=false end
 end
 function N.Update(elapsed)
+    local blocked=N.CheckInstance()
     N.elapsed=N.elapsed+elapsed
     if N.elapsed<3 then return end
     N.elapsed=0
@@ -764,6 +801,7 @@ function N.Update(elapsed)
             entry.nextAt=now()+15
         end
     end
+    if blocked then return end
     for token,offer in pairs(N.offers) do
         if offer.expires and now()>=offer.expires then N.offers[token]=nil end
     end
