@@ -1,7 +1,7 @@
 (() => {
   const roasts = [
     'I’ve seen target dummies with better fucking footwork!',
-    'Even the spirit healer is sick of your shit.',
+    'Even the spirit healer has died of boredom.',
     'You’ve been outflanked by a fucking menu.',
     'That’s your war face? You look like you just vendored your fucking weapon!',
     'I’ve seen a corpse run with more fucking purpose!',
