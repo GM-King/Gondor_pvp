@@ -1,0 +1,18 @@
+## Interface: 16001
+## Title: Gondor PvP
+## Notes: Guild PvP collection and assistance
+## Author: Gondor Calls for Raid
+## Version: 0.9.1-beta
+## SavedVariablesPerCharacter: GondorPvPCharacter
+
+Libs\LibStub.lua
+Libs\CallbackHandler-1.0.lua
+Libs\HereBeDragons-2.0.lua
+Libs\HereBeDragons-Pins-2.0.lua
+Core.lua
+Fares.lua
+CardCatalog.lua
+Cards.lua
+Network.lua
+Map.lua
+UI.lua
