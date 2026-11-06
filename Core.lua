@@ -49,6 +49,11 @@ function GP.Initialize()
             db.pairs[name]=nil
         end
     end
+    local position=db.settings.awardPosition
+    if type(position)~="table" or type(position.x)~="number" or type(position.y)~="number"
+        or position.x~=position.x or position.y~=position.y or position.x<0 or position.x>1 or position.y<0 or position.y>1 then
+        db.settings.awardPosition={x=0.8,y=0.6}
+    end
     GP.db = db
 end
 
@@ -68,7 +73,7 @@ local function scheduleCardRefresh(delay)
     end
 end
 for _, event in ipairs({"ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_PVP_KILLS_CHANGED", "CHAT_MSG_COMBAT_HONOR_GAIN",
-    "ZONE_CHANGED_NEW_AREA", "PLAYER_DEAD", "PLAYER_ALIVE", "PLAYER_UNGHOST", "CHAT_MSG_ADDON", "GROUP_ROSTER_UPDATE", "GUILD_ROSTER_UPDATE", "PLAYER_GUILD_UPDATE"}) do
+    "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "UI_SCALE_CHANGED", "DISPLAY_SIZE_CHANGED", "ZONE_CHANGED_NEW_AREA", "PLAYER_DEAD", "PLAYER_ALIVE", "PLAYER_UNGHOST", "CHAT_MSG_ADDON", "GROUP_ROSTER_UPDATE", "GUILD_ROSTER_UPDATE", "PLAYER_GUILD_UPDATE"}) do
     pcall(frame.RegisterEvent, frame, event)
 end
 frame:SetScript("OnEvent", function(_, event, ...)
@@ -77,6 +82,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
         GP.Initialize()
     elseif event ~= "ADDON_LOADED" and GP.db then
         if event == "PLAYER_LOGIN" then GP.Map.Initialize(); GP.Network.Initialize(); GP.UI.BuildMinimap() end
+        if GP.UI.OnEvent then GP.UI.OnEvent(event) end
         GP.Network.OnEvent(event, ...)
         if GP.Recovery then GP.Recovery.OnEvent(event, ...) end
         if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_PVP_KILLS_CHANGED" or event == "CHAT_MSG_COMBAT_HONOR_GAIN" or event == "GUILD_ROSTER_UPDATE" then

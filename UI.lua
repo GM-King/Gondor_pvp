@@ -49,8 +49,74 @@ local function startSheen(owner)
     if not GP.db.settings.reducedMotion then owner.shineTime=0; owner.shining=true end
 end
 
+function UI.InCombat()
+    return UI.combat or (InCombatLockdown and InCombatLockdown()) or (UnitAffectingCombat and UnitAffectingCombat("player"))
+end
+
+function UI.PlaceAward(f)
+    local w,h=UIParent:GetWidth(),UIParent:GetHeight()
+    local scale=math.min(1,(w-32)/320,(h-32)/630)
+    scale=math.max(0.1,scale)
+    local p=GP.db.settings.awardPosition
+    local x=math.max(160*scale+16,math.min(w-160*scale-16,p.x*w))
+    local y=math.max(315*scale+16,math.min(h-315*scale-16,p.y*h))
+    f:SetScale(scale); f:ClearAllPoints()
+    f:SetPoint("CENTER",UIParent,"BOTTOMLEFT",x/scale,y/scale)
+end
+
+function UI.RefreshPlacement()
+    if not GP.db then return end
+    local visible=not UI.InCombat() and ((UI.frame and UI.frame:IsShown()) or (UI.settings and UI.settings:IsShown()))
+    if visible and not UI.placement then
+        local f=CreateFrame("Frame","GondorPvPAwardPosition",UIParent,"BackdropTemplate")
+        UI.placement=f; f:SetSize(320,630); f:SetFrameStrata("TOOLTIP")
+        f:SetBackdrop({edgeFile="Interface\\Buttons\\WHITE8X8",edgeSize=2})
+        f:SetBackdropBorderColor(1,0.75,0.3,0.8)
+        local handle=CreateFrame("Button",nil,f,"UIPanelButtonTemplate")
+        handle:SetSize(320,26); handle:SetPoint("TOP",0,0); handle:SetText("Card unlock position — drag to move")
+        f:SetMovable(true); f:SetClampedToScreen(true); handle:RegisterForDrag("LeftButton")
+        handle:SetScript("OnDragStart",function()
+            if UI.InCombat() then return end
+            UI.dragging=true; f:StartMoving()
+        end)
+        local function stop()
+            if not UI.dragging then return end
+            f:StopMovingOrSizing(); UI.dragging=false
+            local x,y=f:GetCenter(); local ratio=f:GetEffectiveScale()/UIParent:GetEffectiveScale()
+            GP.db.settings.awardPosition={x=math.max(0,math.min(1,x*ratio/UIParent:GetWidth())),y=math.max(0,math.min(1,y*ratio/UIParent:GetHeight()))}
+            if UI.viewer then UI.viewer.awardElapsed=0 end
+            UI.RefreshPlacement()
+        end
+        f.stopDrag=stop; handle:SetScript("OnDragStop",stop)
+        f:SetScript("OnUpdate",function()
+            if UI.dragging and UI.viewer and UI.viewer.award then
+                UI.viewer:ClearAllPoints(); UI.viewer:SetPoint("CENTER",f,"CENTER",0,0)
+            end
+        end)
+    end
+    if UI.placement then
+        if not visible and UI.dragging then UI.placement.stopDrag() end
+        UI.PlaceAward(UI.placement); UI.placement:SetShown(visible)
+    end
+    if UI.viewer and UI.viewer.award and not UI.dragging then UI.PlaceAward(UI.viewer) end
+end
+
+function UI.OnEvent(event)
+    if event=="PLAYER_REGEN_DISABLED" then
+        UI.combat=true
+        if UI.viewer and UI.viewer.award and UI.viewer:IsShown() then
+            UI.suspending=true; UI.viewer:Hide(); UI.suspending=nil
+        end
+    elseif event=="PLAYER_REGEN_ENABLED" then UI.combat=nil end
+    UI.RefreshPlacement()
+    if event=="PLAYER_REGEN_ENABLED" then GP.Cards.Refresh(); UI.ShowNextAward() end
+end
+
 function UI.ShowCard(index, award)
-    if not GP.Cards.IsUnlocked(index) then return end
+    if not GP.Cards.IsUnlocked(index) or (award and UI.InCombat()) then return end
+    if UI.viewer and UI.viewer:IsShown() then
+        UI.suspending=true; UI.viewer:Hide(); UI.suspending=nil
+    end
     if not UI.viewer then
         local v = CreateFrame("Frame", "GondorPvPCardViewer", UIParent, "BackdropTemplate")
         UI.viewer = v; v:SetSize(320, 630); v:SetPoint("CENTER"); v:SetFrameStrata("DIALOG")
@@ -61,20 +127,36 @@ function UI.ShowCard(index, award)
         attachSheen(v,v.picture,270,480)
         v.caption = label(v, 14, 10, 547, 300, 34)
         button(v, "Close", 110, 105, 15, function() v:Hide() end)
-        v:SetScript("OnHide",function() UI.ShowNextAward() end)
+        v:HookScript("OnUpdate",function(self,elapsed)
+            if self.award and not UI.dragging then
+                if UI.InCombat() then UI.OnEvent("PLAYER_REGEN_DISABLED"); return end
+                self.awardElapsed=(self.awardElapsed or 0)+elapsed
+                if self.awardElapsed>=5 then self:Hide() end
+            end
+        end)
+        v:SetScript("OnHide",function()
+            if not UI.suspending and v.award and v.index then
+                GP.db.pendingCards[v.index]=nil; GP.db.presented[v.index]=true
+            end
+            v.award=nil
+            if not UI.suspending then UI.ShowNextAward() end
+        end)
         if UISpecialFrames then table.insert(UISpecialFrames,"GondorPvPCardViewer") end
     end
+    UI.viewer.index=index; UI.viewer.award=award; UI.viewer.awardElapsed=0
+    UI.viewer:ClearAllPoints(); UI.viewer:SetScale(1)
+    if award then UI.PlaceAward(UI.viewer) else UI.viewer:SetPoint("CENTER",UIParent,"CENTER",0,0) end
     local card = GP.CardCatalog[index]
     UI.viewer.heading:SetText(award and "NEW CARD UNLOCKED!" or "YOUR COLLECTION")
     setCardTexture(UI.viewer.picture,index)
     UI.viewer.caption:SetText(card.name .. "  |  " .. GP.Cards.thresholds[index] .. " honorable kills")
     UI.viewer:Show()
     startSheen(UI.viewer)
-    if award then GP.db.pendingCards[index] = nil; GP.db.presented[index] = true end
+
 end
 
 function UI.ShowNextAward()
-    if not GP.db or not GP.Cards.kills or (UI.viewer and UI.viewer:IsShown()) then return end
+    if UI.InCombat() or not GP.db or not GP.Cards.kills or (UI.viewer and UI.viewer:IsShown()) then return end
     for i = 1, GP.Cards.count do
         if GP.db.pendingCards[i] and GP.Cards.IsUnlocked(i) then UI.ShowCard(i, true); return end
     end
@@ -84,6 +166,7 @@ function UI.Build()
     if UI.frame then return end
     local f = CreateFrame("Frame", "GondorPvPFrame", UIParent, "BackdropTemplate")
     if UISpecialFrames then table.insert(UISpecialFrames,"GondorPvPFrame") end
+    f:SetScript("OnShow",UI.RefreshPlacement); f:SetScript("OnHide",UI.RefreshPlacement)
     UI.frame = f; f:SetSize(780, 680); f:SetPoint("CENTER")
     f:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8", edgeFile="Interface\\Buttons\\WHITE8X8", edgeSize=2})
     f:SetBackdropColor(0.08,0.035,0.03,0.98); f:SetBackdropBorderColor(0.65,0.42,0.18,1)
@@ -276,6 +359,7 @@ function UI.ToggleSettings()
     end
     local s=CreateFrame("Frame", "GondorPvPSettings", UIParent, "BackdropTemplate")
     if UISpecialFrames then table.insert(UISpecialFrames,"GondorPvPSettings") end
+    s:SetScript("OnShow",UI.RefreshPlacement); s:SetScript("OnHide",UI.RefreshPlacement)
     UI.settings=s; s:SetSize(420,390); s:SetPoint("CENTER"); s:SetFrameStrata("DIALOG")
     s:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8",edgeFile="Interface\\Buttons\\WHITE8X8",edgeSize=2})
     s:SetBackdropColor(0.08,0.035,0.03,0.98); s:SetBackdropBorderColor(0.65,0.42,0.18,1)
@@ -300,7 +384,7 @@ function UI.ToggleSettings()
         channel:ClearFocus(); expiry:ClearFocus(); s:Hide()
     end)
     button(s,"Close",110,250,24,function() s:Hide() end)
-    s:Show()
+    s:Show(); UI.RefreshPlacement()
 end
 
 function UI.ShowOffer(token, offer, zone)
