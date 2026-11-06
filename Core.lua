@@ -1,7 +1,7 @@
 local _, GP = ...
 GP.name = "Gondor PvP"
 GP.guildName = "Gondor Calls for Raid"
-GP.defaults = { alerts = false, offers = false, channel = "gcfrpvp", expiry = 15, reducedMotion = false }
+GP.defaults = { alerts = true, offers = true, channel = "gcfrpvp", expiry = 15, reducedMotion = false }
 
 function GP.Print(text)
     if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("|cffffce75Gondor PvP|r: " .. text) end
