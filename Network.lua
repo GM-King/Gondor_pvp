@@ -79,12 +79,26 @@ local function split(s)
     for part in (s .. "~"):gmatch("(.-)~") do t[#t+1] = part end
     return t
 end
+local function whisperTarget(target)
+    if not clean(target) or type(target)~="string" then return target end
+    -- Keep spaces in Forever character names. Strip only a verified local
+    -- realm suffix at the transport boundary; saved identities remain full.
+    local name,realm=target:match("^(.*)%-([^%-]+)$")
+    if not name or name=="" then return target end
+    local expected=fullKey(realm)
+    for _,fn in ipairs({GetNormalizedRealmName or false,GetRealmName or false}) do
+        local own=safe2(fn)
+        if clean(own) and type(own)=="string" and own~="" and fullKey(own)==expected then return name end
+    end
+    return target
+end
+
 local function send(kind, parts, target)
     if N.InInstance() and kind~="X" and kind~="Z" and kind~="K" then return false end
     if not GP.IsEligibleGuild() or not C_ChatInfo or not C_ChatInfo.SendAddonMessage then return false end
     local payload = kind .. "~" .. table.concat(parts, "~")
     if #payload > 240 then return false end
-    local ok, result = pcall(C_ChatInfo.SendAddonMessage, prefix, payload, target and "WHISPER" or "GUILD", target)
+    local ok, result = pcall(C_ChatInfo.SendAddonMessage, prefix, payload, target and "WHISPER" or "GUILD", target and whisperTarget(target))
     if not ok or not clean(result) then return false end
     -- Modern clients return an enum (zero is Success); older clients may
     -- return true or no value. Nonzero enum values include throttling,
