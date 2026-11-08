@@ -1,7 +1,12 @@
 local _, GP = ...
 GP.name = "Gondor PvP"
 GP.guildName = "Gondor Calls For Raid"
-GP.defaults = { alerts = true, offers = true, channel = "gcfrpvp", expiry = 15, reducedMotion = false }
+GP.defaults = { alerts = true, offers = true, channel = "gcfrpvp", expiry = 60, reducedMotion = false }
+
+function GP.DisplayName(name)
+    if issecretvalue and issecretvalue(name) then return "Unknown" end
+    return type(name)=="string" and (name:match("^[^-]+") or name) or "Unknown"
+end
 
 function GP.Print(text)
     if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("|cffffce75Gondor PvP|r: " .. text) end
@@ -27,6 +32,10 @@ function GP.Initialize()
     if type(channel)=="string" then channel=channel:match("^%s*(.-)%s*$"); db.settings.channel=channel end
     if type(channel) ~= "string" or channel=="" or #channel>30 or channel:find("[^%w ]") then
         db.settings.channel=GP.defaults.channel
+    end
+    if db.offerExpiryDefaultsVersion==nil then
+        if tonumber(db.settings.expiry)==15 then db.settings.expiry=60 end
+        db.offerExpiryDefaultsVersion=1
     end
     local expiry=tonumber(db.settings.expiry)
     if not expiry or expiry~=expiry or expiry<5 or expiry>60 then expiry=GP.defaults.expiry end

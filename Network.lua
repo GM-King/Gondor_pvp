@@ -450,7 +450,7 @@ function N.Request(manual, death)
     local created=now()
     local payload = {id,tostring(map),string.format("%.7f",x),string.format("%.7f",y),race,class,tostring(created),tostring(N.sequence)}
     local action = death and "was killed in PvP" or "needs PvP help"
-    local announcement=string.format("[Gondor PvP] %s %s in %s (%.1f, %.1f).",selfName(),action,zone(map),100*x,100*y)
+    local announcement=string.format("[Gondor PvP] %s %s in %s (%.1f, %.1f).",GP.DisplayName(selfName()),action,zone(map),100*x,100*y)
     local offersSent=send("R",payload)
     if not offersSent then N.request=previous end
     N.lastDeliveryMessage=nil
@@ -500,10 +500,10 @@ function N.Accept(id)
     N.active={id=offer.id, requester=offer.sender, map=offer.map, x=offer.x, y=offer.y, amount=quote,
         originMap=map,originX=x,originY=y,revision=offer.revision,started=now()}
     GP.db.activeFare=N.active
-    chat("[Gondor PvP] " .. selfName() .. " is responding to " .. offer.sender .. ".")
+    chat("[Gondor PvP] " .. GP.DisplayName(selfName()) .. " is responding to " .. GP.DisplayName(offer.sender) .. ".")
     GP.Map.Set(offer.map,offer.x,offer.y)
     N.offers[id]=nil
-    GP.Print("Fare accepted. Meet " .. offer.sender .. " after resurrection.")
+    GP.Print("Fare accepted. Meet " .. GP.DisplayName(offer.sender) .. " after resurrection.")
     return true
 end
 local function cancellationKey(peer,id,revision,role)
@@ -644,7 +644,7 @@ local function onMessage(message,sender,distribution)
         local party=safe2(UnitInParty,sender)
         local raid=safe2(UnitInRaid,sender)
         if own == map and ((clean(party) and party) or (clean(raid) and raid)) then return end
-        local expiry=stamp+math.max(5,math.min(60,tonumber(GP.db.settings.expiry) or 15))
+        local expiry=stamp+math.max(5,math.min(60,tonumber(GP.db.settings.expiry) or GP.defaults.expiry))
         if now()>=expiry then return end
         local om,ox,oy=GP.Map.Position()
         local quote=om and GP.Map.Quote(om,ox,oy,map,x,y)
@@ -683,7 +683,7 @@ local function onMessage(message,sender,distribution)
             local quote=GP.Map.Quote(map,x,y,snapshot.map,snapshot.x,snapshot.y)
             if not quote or (proposed ~= quote and proposed ~= 0) then return end
             N.request.helpers[key(sender)]={name=sender,amount=proposed,revision=revision}
-            GP.Print(sender .. " accepted your Kill Share.")
+            GP.Print(GP.DisplayName(sender) .. " accepted your Kill Share.")
         end
     elseif kind == "P" and distribution == "WHISPER" then
         local map,x,y=position(p,3); local isAlive=p[6]=="1"
@@ -716,7 +716,7 @@ local function onMessage(message,sender,distribution)
         local pos=helper and helper.position
         if pos and now()-pos.at<=8 and pos.alive and alive() and visible(sender) and within(pos[1],pos[2],pos[3],sender) then
             if send("D",revisionFields({id,tostring(helper.amount)},helper.revision),sender) then
-                if not helper.completedAt then GP.Print(sender .. " fulfilled your Kill Share.") end
+                if not helper.completedAt then GP.Print(GP.DisplayName(sender) .. " fulfilled your Kill Share.") end
                 helper.completedAt=helper.completedAt or now()
                 helper.lastD=now()
             end

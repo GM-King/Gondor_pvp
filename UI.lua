@@ -107,9 +107,13 @@ function UI.OnEvent(event)
         if UI.viewer and UI.viewer.award and UI.viewer:IsShown() then
             UI.suspending=true; UI.viewer:Hide(); UI.suspending=nil
         end
+        if UI.offer and UI.offer:IsShown() then
+            UI.QueueOffer(UI.offer.token,UI.offer.currentOffer,UI.offer.zone,true)
+            UI.offer:Hide()
+        end
     elseif event=="PLAYER_REGEN_ENABLED" then UI.combat=nil end
     UI.RefreshPlacement()
-    if event=="PLAYER_REGEN_ENABLED" then GP.Cards.Refresh(); UI.ShowNextAward() end
+    if event=="PLAYER_REGEN_ENABLED" then GP.Cards.Refresh(); UI.ShowNextAward(); UI.ShowNextOffer() end
 end
 
 function UI.ShowCard(index, award)
@@ -267,14 +271,14 @@ local function refreshKillShare()
     local active,request=GP.Network.active,GP.Network.request
     local lines={"YOUR ACTIVE FARE"}
     if active then
-        lines[#lines+1]="Helping " .. active.requester .. "  |  " .. active.amount .. " points"
+        lines[#lines+1]="Helping " .. GP.DisplayName(active.requester) .. "  |  " .. active.amount .. " points"
     else lines[#lines+1]="No active fare." end
     lines[#lines+1]=""
     lines[#lines+1]="YOUR HELP REQUEST"
     if request then
         local helpers={}
         for _,helper in pairs(request.helpers or {}) do
-            if type(helper.name)=="string" then helpers[#helpers+1]=helper.name end
+            if type(helper.name)=="string" then helpers[#helpers+1]=GP.DisplayName(helper.name) end
         end
         table.sort(helpers)
         if #helpers==0 then lines[#lines+1]="Waiting for guildmates to respond."
@@ -336,11 +340,11 @@ function UI.ShowPoints()
     local lines={"Recent completed Kill Shares:"}
     if GP.Recovery then table.insert(lines,1,GP.Recovery.Status()) end
     for i=1,math.min(10,#rows) do
-        local r=rows[i]; lines[#lines+1]=string.format("%s   +%d points",r.requester,r.amount)
+        local r=rows[i]; lines[#lines+1]=string.format("%s   +%d points",GP.DisplayName(r.requester),r.amount)
     end
     if #rows==0 then lines[#lines+1]="No completed fares yet." end
     lines[#lines+1]=""
-    lines[#lines+1]=GP.Network.active and ("Active fare: " .. GP.Network.active.requester) or "No active fare."
+    lines[#lines+1]=GP.Network.active and ("Active fare: " .. GP.DisplayName(GP.Network.active.requester)) or "No active fare."
     UI.pointFrame.title:SetText("PvP POINTS: " .. GP.Network.Points())
     UI.pointFrame.history:SetText(table.concat(lines,"\n"))
     UI.pointFrame:Show()
@@ -374,7 +378,7 @@ function UI.ToggleSettings()
     channel:SetSize(350,25); channel:SetPoint("TOPLEFT",35,-200); channel:SetAutoFocus(false); channel:SetMaxLetters(30); channel:SetText(GP.db.settings.channel or "gcfrpvp")
     local expiryLabel=label(s,12,25,239,370,22); expiryLabel:SetJustifyH("LEFT"); expiryLabel:SetText("Offer expiry in seconds (5–60)")
     local expiry=CreateFrame("EditBox",nil,s,"InputBoxTemplate")
-    expiry:SetSize(100,25); expiry:SetPoint("TOPLEFT",35,-265); expiry:SetAutoFocus(false); expiry:SetMaxLetters(2); expiry:SetNumeric(true); expiry:SetText(tostring(GP.db.settings.expiry or 15))
+    expiry:SetSize(100,25); expiry:SetPoint("TOPLEFT",35,-265); expiry:SetAutoFocus(false); expiry:SetMaxLetters(2); expiry:SetNumeric(true); expiry:SetText(tostring(GP.db.settings.expiry or GP.defaults.expiry))
     button(s,"Save",110,55,24,function()
         local name=channel:GetText():gsub("^%s+",""):gsub("%s+$",""):gsub("^/","")
         if name=="" or name:find("[^%w ]") then GP.Print("Enter a valid channel name."); return end
@@ -388,10 +392,32 @@ function UI.ToggleSettings()
     s:Show(); UI.RefreshPlacement()
 end
 
+function UI.QueueOffer(token,offer,zone,first)
+    if not offer then return end
+    for _,queued in ipairs(UI.offerQueue) do
+        if queued.token==token then queued.offer=offer; queued.zone=zone; return end
+    end
+    local entry={token=token,offer=offer,zone=zone}
+    if first then table.insert(UI.offerQueue,1,entry) else UI.offerQueue[#UI.offerQueue+1]=entry end
+end
+
+function UI.ShowNextOffer()
+    if UI.InCombat() or (UI.offer and UI.offer:IsShown()) then return end
+    while #UI.offerQueue>0 do
+        local entry=table.remove(UI.offerQueue,1)
+        local offer=GP.Network.offers[entry.token]
+        if offer and offer.expires>now() and not offer.deferred then
+            UI.ShowOffer(entry.token,offer,entry.zone); return
+        end
+    end
+end
+
 function UI.ShowOffer(token, offer, zone)
+    if offer.expires<=now() then return end
+    if UI.InCombat() then UI.QueueOffer(token,offer,zone); return end
     if not UI.offer then
         local f=CreateFrame("Frame","GondorPvPOffer",UIParent,"BackdropTemplate")
-        UI.offer=f; f:SetSize(370,190); f:SetPoint("TOP",0,-180); f:SetFrameStrata("DIALOG")
+        UI.offer=f; f:SetSize(370,190); f:SetPoint("BOTTOMRIGHT",UIParent,"BOTTOMRIGHT",-40,180); f:SetClampedToScreen(true); f:SetFrameStrata("DIALOG")
         f:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8",edgeFile="Interface\\Buttons\\WHITE8X8",edgeSize=2})
         f:SetBackdropColor(0.10,0.04,0.03,0.98); f:SetBackdropBorderColor(0.7,0.45,0.2,1)
         f.title=label(f,17,10,12,350,26)
@@ -401,29 +427,21 @@ function UI.ShowOffer(token, offer, zone)
         end)
         button(f,"Dismiss",115,200,20,function() GP.Network.offers[f.token]=nil; f:Hide() end)
         f:SetScript("OnUpdate",function(self)
-            if self.expires and now()>=self.expires then self:Hide() end
-        end)
-        f:SetScript("OnHide",function()
-            while #UI.offerQueue>0 do
-                local nextOffer=table.remove(UI.offerQueue,1)
-                if nextOffer.offer.expires>now() and GP.Network.offers[nextOffer.token] then
-                    UI.ShowOffer(nextOffer.token,nextOffer.offer,nextOffer.zone); return
-                end
-            end
+            if UI.InCombat() then
+                UI.QueueOffer(self.token,self.currentOffer,self.zone,true); self:Hide()
+            elseif self.expires and now()>=self.expires then self:Hide() end
         end)
         f:Hide()
+        f:SetScript("OnHide",UI.ShowNextOffer)
     end
     local f=UI.offer
     if f:IsShown() and f.token~=token then
-        for _,queued in ipairs(UI.offerQueue) do
-            if queued.token==token then queued.offer=offer; queued.zone=zone; return end
-        end
-        UI.offerQueue[#UI.offerQueue+1]={token=token,offer=offer,zone=zone}; return
+        UI.QueueOffer(token,offer,zone); return
     end
-    f.token=token; f.expires=offer.expires
+    f.token=token; f.expires=offer.expires; f.currentOffer=offer; f.zone=zone
     f.title:SetText("PvP HELP REQUEST")
     f.detail:SetText(string.format("%s — %s %s\n%s (%.1f, %.1f)\nPotential reward: %s PvP Points",
-        offer.sender,offer.race or "Unknown",offer.class or "Unknown",zone,offer.x*100,offer.y*100,
+        GP.DisplayName(offer.sender),offer.race or "Unknown",offer.class or "Unknown",zone,offer.x*100,offer.y*100,
         offer.quote and tostring(offer.quote) or "unavailable"))
     f:Show()
 end

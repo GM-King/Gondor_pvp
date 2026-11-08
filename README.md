@@ -6,7 +6,7 @@ A PvP card binder and guild help system for **Gondor Calls for Raid** on WoW For
 
 ## Download
 
-**[Download Gondor PvP 0.9.6 beta (75.0 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.6-beta/Gondor_PvP.zip)**
+**[Download Gondor PvP 0.9.7 beta (75.0 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.7-beta/Gondor_PvP.zip)**
 
 Visit the [Gondor PvP website](https://gm-king.github.io/Gondor_pvp/) for installation instructions and an overview.
 
@@ -17,7 +17,7 @@ The player ZIP includes the card catalog and all textures. The public source con
 1. Install the `Gondor_PvP` folder in the Forever `Interface/AddOns` directory and enable it at character selection.
 2. Type `/gpvp` to open the card binder. Left-click the murloc minimap button for the binder or right-click it for settings.
 3. Open Settings and opt in to **PvP death alerts** and/or **incoming Kill Share offers**. Both are off by default. The default announcement channel is `gcfrpvp`; the addon joins it when sending. Choose a different custom channel, `GUILD`, `PARTY`, or `RAID` in settings.
-4. Configure incoming offer expiry from 5 to 60 seconds; the default is 15.
+4. Configure incoming offer expiry from 5 to 60 seconds; the default is 60.
 
 ## Cards
 
@@ -26,6 +26,8 @@ Lifetime honorable-kill milestones unlock 69 cards for each character. The first
 ## Alerts and Kill Share
 
 An enabled death alert announces your zone and map coordinates and sends an addon request to your guild. If the client does not expose a reliable PvP classification, a confirmation asks whether to send the alert. Open **Kill Share** in the binder to request help and see your active fare and responding guildmates, or use `/gpvp request`. Manual requests have a ten-minute cooldown; each new death reduces the remaining cooldown by five minutes.
+
+Incoming fare popups appear at the lower right and wait until combat ends. Expiry continues while hidden, so expired or withdrawn offers do not reappear. Upgrading changes the former 15-second default to 60 seconds once; other saved durations are preserved. Character names are displayed without realm suffixes.
 
 Guildmates who enabled offers receive a popup with the requester's name, race, class, location and potential reward. Multiple helpers may accept a request, but each helper can hold only one accepted fare at a time. `/gpvp cancel` cancels your accepted fare; `/gpvp cancelrequest` withdraws your own request. These controls are also in the Points panel. The map marker follows the requester's position after resurrection.
 
