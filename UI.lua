@@ -287,6 +287,7 @@ local function refreshKillShare()
     local remaining=math.max(0,math.ceil((GP.db.manualReadyAt or 0)-now()))
     lines[#lines+1]=""
     lines[#lines+1]=remaining>0 and ("Manual request available in " .. math.ceil(remaining/60) .. " min.") or "Manual request available."
+    if GP.Network.StatusText then lines[#lines+1]=GP.Network.StatusText() end
     f.detail:SetText(table.concat(lines,"\n"))
 end
 
@@ -294,11 +295,12 @@ function UI.ShowKillShare()
     if not UI.killShare then
         local f=CreateFrame("Frame","GondorPvPKillShare",UIParent,"BackdropTemplate")
         if UISpecialFrames then table.insert(UISpecialFrames,"GondorPvPKillShare") end
-        UI.killShare=f; f:SetSize(430,400); f:SetPoint("CENTER"); f:SetFrameStrata("DIALOG")
+        UI.killShare=f; f:SetSize(430,460); f:SetPoint("CENTER"); f:SetFrameStrata("DIALOG")
         f:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8",edgeFile="Interface\\Buttons\\WHITE8X8",edgeSize=2})
         f:SetBackdropColor(0.08,0.035,0.03,0.98); f:SetBackdropBorderColor(0.65,0.42,0.18,1)
         label(f,20,10,12,410,30):SetText("KILL SHARE")
-        f.detail=label(f,12,25,52,380,245); f.detail:SetJustifyH("LEFT"); f.detail:SetJustifyV("TOP")
+        f.detail=label(f,12,25,52,380,305); f.detail:SetJustifyH("LEFT"); f.detail:SetJustifyV("TOP")
+        button(f,"Retry announcement",180,125,12,function() GP.Network.RetryAnnouncement(); refreshKillShare() end)
         button(f,"Request help",150,45,80,function() GP.Network.Request(true); refreshKillShare() end)
         button(f,"Cancel my fare",150,235,80,function() GP.Network.CancelFare(); refreshKillShare() end)
         button(f,"Withdraw request",150,45,45,function() GP.Network.CancelRequest(); refreshKillShare() end)
@@ -379,8 +381,7 @@ function UI.ToggleSettings()
         local seconds=tonumber(expiry:GetText())
         if not seconds or seconds<5 or seconds>60 then GP.Print("Offer expiry must be from 5 to 60 seconds."); return end
         GP.db.settings.channel=name; GP.db.settings.expiry=math.floor(seconds)
-        local upper=name:upper()
-        if upper~="GUILD" and upper~="PARTY" and upper~="RAID" and JoinPermanentChannel then pcall(JoinPermanentChannel,name) end
+        GP.Network.JoinChannel()
         channel:ClearFocus(); expiry:ClearFocus(); s:Hide()
     end)
     button(s,"Close",110,250,24,function() s:Hide() end)
@@ -439,7 +440,7 @@ function UI.ClearOffers()
     if UI.offer and UI.offer:IsShown() then UI.offer:Hide() end
 end
 
-function UI.ConfirmDeath()
+function UI.ConfirmDeath(serial)
     if not StaticPopupDialogs or not StaticPopup_Show then
         GP.Print("Death detected. If this was PvP, use /gpvp request.")
         return
@@ -448,10 +449,12 @@ function UI.ConfirmDeath()
         StaticPopupDialogs.GONDOR_PVP_DEATH={
             text="Were you killed in PvP? Send a Gondor PvP help alert?",
             button1="Send alert", button2="Dismiss", timeout=15, whileDead=true, hideOnEscape=true,
-            OnAccept=function() GP.Network.Request(false,true) end,
+            OnAccept=function(_,data)
+                if data==GP.Network.deathSerial and GP.db.settings.alerts then GP.Network.Request(false,true) end
+            end,
         }
     end
-    StaticPopup_Show("GONDOR_PVP_DEATH")
+    StaticPopup_Show("GONDOR_PVP_DEATH",nil,nil,serial)
 end
 
 function UI.Toggle()

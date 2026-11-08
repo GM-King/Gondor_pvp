@@ -6,7 +6,7 @@ A PvP card binder and guild help system for **Gondor Calls for Raid** on WoW For
 
 ## Download
 
-**[Download Gondor PvP 0.9.5 beta (75.0 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.5-beta/Gondor_PvP.zip)**
+**[Download Gondor PvP 0.9.6 beta (75.0 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.6-beta/Gondor_PvP.zip)**
 
 Visit the [Gondor PvP website](https://gm-king.github.io/Gondor_pvp/) for installation instructions and an overview.
 
@@ -57,6 +57,8 @@ For an independent backup, exit WoW completely and copy WTF/Account/<account>/<r
 - `/gpvp` or `/gondorpvp`: open the binder.
 - `/gpvp settings`: configure alerts, offers, channel and expiry.
 - `/gpvp request`: manually request help.
+- `/gpvp retry`: retry a failed announcement within ten seconds without repeating guild offers. The Kill Share panel also has a Retry announcement button.
+- `/gpvp status`: show channel readiness, settings, cooldown, last death classification and delivery outcomes.
 - `/gpvp cancel`: cancel your accepted fare.
 - `/gpvp cancelrequest`: withdraw your own request.
 - `/gpvp help`: show command help.

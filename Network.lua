@@ -110,21 +110,80 @@ local function rosterMember(sender)
     end
     return found == 1 and canonicalName(resolved) or nil
 end
-local function chat(text)
-    local setting = GP.db.settings.channel or "gcfrpvp"
-    local kind, target = "CHANNEL", nil
-    local upper = setting:upper()
-    if upper == "GUILD" or upper == "PARTY" or upper == "RAID" then kind = upper
-    else
-        if JoinPermanentChannel then pcall(JoinPermanentChannel, setting) end
-        target = safe2(GetChannelName,setting)
-        if not target or target == 0 then GP.Print("Channel unavailable: " .. setting); return false end
+function N.JoinChannel()
+    local name=GP.db.settings.channel
+    local upper=name:upper()
+    if upper~="GUILD" and upper~="PARTY" and upper~="RAID" and type(JoinPermanentChannel)=="function" then
+        pcall(JoinPermanentChannel,name)
     end
-    local fn = C_ChatInfo and C_ChatInfo.SendChatMessage or SendChatMessage
-    if not fn then GP.Print("Chat sending is unavailable."); return false end
-    local ok = pcall(fn, text, kind, nil, target)
-    if not ok then GP.Print("Could not send the announcement in " .. setting .. ".") end
-    return ok
+end
+local function chat(text, setting)
+    setting=setting or GP.db.settings.channel
+    local kind,target=setting:upper(),nil
+    if kind~="GUILD" and kind~="PARTY" and kind~="RAID" then
+        kind="CHANNEL"; target=safe2(GetChannelName,setting)
+        if not clean(target) or type(target)~="number" or target<=0 then return false,"Channel unavailable: "..setting,true end
+    end
+    local fn=C_ChatInfo and C_ChatInfo.SendChatMessage or SendChatMessage
+    if type(fn)~="function" then return false,"Chat sending is unavailable." end
+    -- The namespaced API expects its target as a string.
+    if target and C_ChatInfo and fn==C_ChatInfo.SendChatMessage then target=tostring(target) end
+    local ok,result=pcall(fn,text,kind,nil,target)
+    if not ok or result==false then return false,"Could not send the announcement in "..setting..". Click Retry announcement." end
+    return true
+end
+local function reportDelivery(status)
+    N.lastRequestStatus=status
+    local text="Guild offers: "..status.offers..". Announcement: "..status.announcement.."."
+    if status.reason then text=text.." "..status.reason end
+    if text~=N.lastDeliveryMessage then GP.Print(text); N.lastDeliveryMessage=text end
+end
+local function attemptAnnouncement(entry)
+    if N.InInstance() or not GP.IsEligibleGuild() or entry.channel~=GP.db.settings.channel then
+        entry.status.announcement="cancelled"; N.pendingAnnouncement=nil; N.failedAnnouncement=nil
+        return
+    end
+    local ok,reason,waiting
+    if now()>=entry.expires then reason="Announcement expired before it could be sent."
+    else ok,reason,waiting=chat(entry.text,entry.channel) end
+    if ok then
+        entry.status.announcement="submitted"; entry.status.reason=nil
+        if entry.manual and not entry.cooldownStarted then GP.db.manualReadyAt=now()+600; entry.cooldownStarted=true end
+        N.pendingAnnouncement=nil; N.failedAnnouncement=nil
+    elseif waiting and now()<entry.expires then
+        entry.status.announcement="pending"; entry.status.reason=reason; N.pendingAnnouncement=entry
+    else
+        entry.status.announcement="failed"; entry.status.reason=reason
+        N.pendingAnnouncement=nil; N.failedAnnouncement=entry
+    end
+    reportDelivery(entry.status)
+end
+function N.ClearAnnouncements()
+    local entry=N.pendingAnnouncement or N.failedAnnouncement
+    if entry then entry.status.announcement="cancelled"; entry.status.reason=nil end
+    N.pendingAnnouncement=nil; N.failedAnnouncement=nil
+end
+function N.RetryAnnouncement()
+    local entry=N.failedAnnouncement
+    if not entry then GP.Print("No failed announcement to retry."); return false end
+    if now()>=entry.expires then N.failedAnnouncement=nil; GP.Print("That announcement has expired."); return false end
+    N.JoinChannel(); attemptAnnouncement(entry)
+    return entry.status.announcement=="submitted"
+end
+function N.StatusText()
+    if N.requestError then return N.requestError end
+    local status=N.lastRequestStatus
+    return status and ("Guild offers: "..status.offers..". Announcement: "..status.announcement.."."..(status.reason and (" "..status.reason) or "")) or "No request sent this session."
+end
+function N.PrintStatus()
+    local guild,guildReason=GP.GetPlayerGuild()
+    GP.Print("Detected guild: "..(guild or ("("..guildReason..")"))..". Required guild: "..GP.guildName..".")
+    local channel=GP.db.settings.channel
+    local upper=channel:upper()
+    local id=safe2(GetChannelName,channel)
+    local ready=upper=="GUILD" or upper=="PARTY" or upper=="RAID" or (clean(id) and type(id)=="number" and id>0)
+    GP.Print("Alerts: "..tostring(GP.db.settings.alerts)..". Eligible guild: "..tostring(GP.IsEligibleGuild())..". Channel: "..channel.." ("..(ready and "ready" or "unavailable")..").")
+    GP.Print("Manual cooldown: "..math.max(0,math.ceil((GP.db.manualReadyAt or 0)-now())).." sec. Last death: "..(N.lastDeathClassification or "none")..". "..N.StatusText())
 end
 local function zone(map)
     local info = C_Map and safe2(C_Map.GetMapInfo,map)
@@ -358,15 +417,21 @@ function N.Initialize()
     N.CheckInstance()
 end
 function N.Request(manual, death)
-    if N.InInstance() then GP.Print("Kill Share is disabled in instances."); return false end
-    if not GP.IsEligibleGuild() then GP.Print("Kill Share is available to Gondor Calls for Raid members."); return false end
-    if manual and now() < (GP.db.manualReadyAt or 0) then GP.Print("Request available in " .. math.ceil(((GP.db.manualReadyAt or 0)-now())/60) .. " min."); return false end
+    N.requestError=nil
+    local function reject(message)
+        N.requestError=message; GP.Print(message); return false
+    end
+    if N.InInstance() then return reject("Kill Share is disabled in instances.") end
+    if not GP.IsEligibleGuild() then return reject("Kill Share is available to "..GP.guildName.." members.") end
+    if manual and N.pendingAnnouncement then return reject("Announcement pending; please wait.") end
+    if death and N.deathSerial and N.alertedDeathSerial==N.deathSerial then return false end
+    if manual and now() < (GP.db.manualReadyAt or 0) then return reject("Request available in " .. math.ceil(((GP.db.manualReadyAt or 0)-now())/60) .. " min.") end
     local map, x, y
     if death then
-        if not N.deathPosition then GP.Print("The death location was unavailable; no coordinates were announced."); return false end
+        if not N.deathPosition then return reject("The death location was unavailable; no coordinates were announced.") end
         map,x,y=unpack(N.deathPosition)
     else map,x,y=GP.Map.Position() end
-    if not map then GP.Print("Your map position is unavailable. Try again outdoors."); return false end
+    if not map then return reject("Your map position is unavailable. Try again outdoors.") end
     -- The same quantized destination is sent to helpers and retained for
     -- requester-side quote verification at reward-band boundaries.
     x=tonumber(string.format("%.7f",x)); y=tonumber(string.format("%.7f",y))
@@ -386,13 +451,17 @@ function N.Request(manual, death)
     local payload = {id,tostring(map),string.format("%.7f",x),string.format("%.7f",y),race,class,tostring(created),tostring(N.sequence)}
     local action = death and "was killed in PvP" or "needs PvP help"
     local announcement=string.format("[Gondor PvP] %s %s in %s (%.1f, %.1f).",selfName(),action,zone(map),100*x,100*y)
-    if not send("R",payload) then
-        N.request=previous
-        local announced=chat(announcement)
-        if manual and announced then GP.db.manualReadyAt=now()+600 end
-        GP.Print("Addon messaging is unavailable; automatic Kill Share offers could not be sent.")
-        return false
-    end
+    local offersSent=send("R",payload)
+    if not offersSent then N.request=previous end
+    N.lastDeliveryMessage=nil
+    local status={offers=offersSent and "submitted" or "failed",announcement="pending"}
+    N.pendingAnnouncement=nil; N.failedAnnouncement=nil
+    local entry={text=announcement,channel=GP.db.settings.channel,expires=now()+10,manual=manual,
+        cooldownStarted=manual and offersSent,status=status,id=id}
+    if manual and offersSent then GP.db.manualReadyAt=now()+600 end
+    N.JoinChannel(); attemptAnnouncement(entry)
+    if death and (offersSent or status.announcement=="submitted" or status.announcement=="pending") then N.alertedDeathSerial=N.deathSerial end
+    if not offersSent then return false end
     N.request.map,N.request.x,N.request.y,N.request.created=map,x,y,created
     N.request.revisions=N.request.revisions or {}
     N.request.finished=N.request.finished or {}
@@ -402,8 +471,6 @@ function N.Request(manual, death)
     end
     N.request.revisions[tostring(N.sequence)]={map=map,x=x,y=y,created=created}
     GP.db.outgoingRequest = N.request
-    chat(announcement)
-    if manual then GP.db.manualReadyAt = now()+600 end
     return true
 end
 function N.Accept(id)
@@ -461,6 +528,7 @@ function N.CancelFare()
     N.active=nil; GP.db.activeFare=nil; GP.Map.Clear(); GP.Print("Fare cancelled."); showDeferredOffers()
 end
 function N.CancelRequest()
+    N.ClearAnnouncements()
     if not N.request then GP.Print("No open request."); return end
     send("X",{N.request.id})
     for _,helper in pairs(N.request.helpers) do
@@ -476,6 +544,7 @@ function N.CheckInstance()
         N.offers={}; N.buffered={}; N.seenRequests={}
         N.deathSerial=(N.deathSerial or 0)+1
         N.deathPosition=nil; N.lastAlive=nil
+        N.ClearAnnouncements()
         if GP.UI.ClearOffers then GP.UI.ClearOffers() end
         if StaticPopup_Hide then pcall(StaticPopup_Hide,"GONDOR_PVP_DEATH") end
         if N.active then N.CancelFare() end
@@ -523,11 +592,12 @@ local function classifyRecap(deathAt)
             if explicit then return "pvp" end
             local flags = entry.sourceFlags
             if clean(flags) and type(flags) == "number" and flags >= 0 and flags < 4294967296 and flags == math.floor(flags) then
-                sawFlags = true
                 local hostile = hasFlag(flags, 0x40)
                 local player = hasFlag(flags, 0x400)
                 local controlledPet = hasFlag(flags, 0x100) and (hasFlag(flags, 0x1000) or hasFlag(flags, 0x2000))
                 if hostile and (player or controlledPet) then return "pvp" end
+                if hasFlag(flags,0x800) and not hasFlag(flags,0x100) then sawFlags=true
+                else incomplete=true end
             else
                 incomplete = true
             end
@@ -541,6 +611,7 @@ local function inspectDeath(serial, attempt, deathAt)
     if N.InInstance() then return end
     if serial ~= N.deathSerial or not GP.db.settings.alerts or not GP.IsEligibleGuild() then return end
     local result = classifyRecap(deathAt)
+    N.lastDeathClassification=result
     if result == "pvp" then
         N.Request(false, true)
     elseif result == "unknown" then
@@ -549,7 +620,7 @@ local function inspectDeath(serial, attempt, deathAt)
             local callback = function() inspectDeath(serial, attempt + 1, deathAt) end
             if C_Timer and C_Timer.After then C_Timer.After(delays[attempt + 1], callback) else callback() end
         elseif GP.UI.ConfirmDeath then
-            GP.UI.ConfirmDeath()
+            GP.UI.ConfirmDeath(serial)
         end
     end
 end
@@ -751,6 +822,9 @@ function N.OnEvent(event,...)
                 end
             else onMessage(msg,sender,distribution) end
         end
+    elseif event=="CHANNEL_UI_UPDATE" or event=="CHAT_MSG_CHANNEL_NOTICE" then
+        if N.pendingAnnouncement then attemptAnnouncement(N.pendingAnnouncement) end
+    elseif event=="PLAYER_ENTERING_WORLD" then N.JoinChannel()
     elseif event=="GUILD_ROSTER_UPDATE" then
         local buffered=N.buffered; N.buffered={}
         for _,entry in ipairs(buffered) do
@@ -763,9 +837,10 @@ function N.OnEvent(event,...)
         local unit=...
         local guild=safe2(GetGuildInfo,"player")
         local inGuild=safe2(IsInGuild)
-        local knownOther=clean(guild) and type(guild)=="string" and guild~="" and guild~=GP.guildName
+        local knownOther=clean(guild) and type(guild)=="string" and guild~="" and not GP.MatchesGuild(guild)
         local knownNone=IsInGuild and clean(inGuild) and inGuild==false
         if clean(unit) and (not unit or unit=="player") and (knownOther or knownNone) then
+            N.ClearAnnouncements()
             N.active=nil; N.request=nil; N.offers={}; N.buffered={}; N.seenRequests={}; GP.db.cancelOutbox={}
             GP.db.activeFare=nil; GP.db.outgoingRequest=nil; GP.Map.Clear()
             if GP.UI.ClearOffers then GP.UI.ClearOffers() end
@@ -780,6 +855,8 @@ function N.OnEvent(event,...)
             end
             N.deathPosition=map and {map,x,y} or nil
             N.deathSerial=(N.deathSerial or 0)+1
+            N.ClearAnnouncements()
+            if StaticPopup_Hide then pcall(StaticPopup_Hide,"GONDOR_PVP_DEATH") end
             if GP.db.settings.alerts then
                 local serial=N.deathSerial
                 local deathAt=now()
@@ -791,6 +868,10 @@ function N.OnEvent(event,...)
 end
 function N.Update(elapsed)
     local blocked=N.CheckInstance()
+    if not blocked and N.pendingAnnouncement then
+        N.announcementElapsed=(N.announcementElapsed or 0)+elapsed
+        if N.announcementElapsed>=0.5 then N.announcementElapsed=0; attemptAnnouncement(N.pendingAnnouncement) end
+    end
     N.elapsed=N.elapsed+elapsed
     if N.elapsed<3 then return end
     N.elapsed=0

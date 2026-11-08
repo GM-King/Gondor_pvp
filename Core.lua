@@ -1,6 +1,6 @@
 local _, GP = ...
 GP.name = "Gondor PvP"
-GP.guildName = "Gondor Calls for Raid"
+GP.guildName = "Gondor Calls For Raid"
 GP.defaults = { alerts = true, offers = true, channel = "gcfrpvp", expiry = 15, reducedMotion = false }
 
 function GP.Print(text)
@@ -57,12 +57,22 @@ function GP.Initialize()
     GP.db = db
 end
 
-function GP.IsEligibleGuild()
-    if not GetGuildInfo then return false end
-    local ok, name = pcall(GetGuildInfo, "player")
-    if not ok then return false end
+function GP.MatchesGuild(name)
     if issecretvalue and issecretvalue(name) then return false end
-    return name == GP.guildName
+    return type(name)=="string" and name:lower()==GP.guildName:lower()
+end
+
+function GP.GetPlayerGuild()
+    if type(GetGuildInfo)~="function" then return nil,"unavailable" end
+    local ok,name=pcall(GetGuildInfo,"player")
+    if not ok then return nil,"unavailable" end
+    if issecretvalue and issecretvalue(name) then return nil,"restricted" end
+    if type(name)~="string" or name=="" then return nil,"unavailable" end
+    return name
+end
+
+function GP.IsEligibleGuild()
+    return GP.MatchesGuild(GP.GetPlayerGuild())
 end
 
 local frame = CreateFrame("Frame")
@@ -73,7 +83,7 @@ local function scheduleCardRefresh(delay)
     end
 end
 for _, event in ipairs({"ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_PVP_KILLS_CHANGED", "CHAT_MSG_COMBAT_HONOR_GAIN",
-    "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "UI_SCALE_CHANGED", "DISPLAY_SIZE_CHANGED", "ZONE_CHANGED_NEW_AREA", "PLAYER_DEAD", "PLAYER_ALIVE", "PLAYER_UNGHOST", "CHAT_MSG_ADDON", "GROUP_ROSTER_UPDATE", "GUILD_ROSTER_UPDATE", "PLAYER_GUILD_UPDATE"}) do
+    "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "UI_SCALE_CHANGED", "DISPLAY_SIZE_CHANGED", "ZONE_CHANGED_NEW_AREA", "PLAYER_DEAD", "PLAYER_ALIVE", "PLAYER_UNGHOST", "CHANNEL_UI_UPDATE", "CHAT_MSG_CHANNEL_NOTICE", "CHAT_MSG_ADDON", "GROUP_ROSTER_UPDATE", "GUILD_ROSTER_UPDATE", "PLAYER_GUILD_UPDATE"}) do
     pcall(frame.RegisterEvent, frame, event)
 end
 frame:SetScript("OnEvent", function(_, event, ...)
@@ -105,9 +115,11 @@ SLASH_GONDORPVP2 = "/gondorpvp"
 SlashCmdList.GONDORPVP = function(message)
     local command = (message or ""):lower():match("^%s*(%S*)")
     if command == "request" then GP.Network.Request(true)
+    elseif command == "status" then GP.Network.PrintStatus()
+    elseif command == "retry" then GP.Network.RetryAnnouncement()
     elseif command == "cancel" then GP.Network.CancelFare()
     elseif command == "cancelrequest" then GP.Network.CancelRequest()
     elseif command == "settings" then GP.UI.ToggleSettings()
-    elseif command == "help" then GP.Print("/gpvp opens your binder. /gpvp request, cancel, cancelrequest, or settings.")
+    elseif command == "help" then GP.Print("/gpvp opens your binder. /gpvp request, retry, status, cancel, cancelrequest, or settings.")
     else GP.UI.Toggle() end
 end
