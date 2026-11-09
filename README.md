@@ -6,7 +6,7 @@ A PvP card binder and guild help system for **Gondor Calls for Raid** on WoW For
 
 ## Download
 
-**[Download Gondor PvP 0.9.8 beta (75.0 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.8-beta/Gondor_PvP.zip)**
+**[Download Gondor PvP 0.9.9 beta (75.4 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.9-beta/Gondor_PvP.zip)**
 
 Visit the [Gondor PvP website](https://gm-king.github.io/Gondor_pvp/) for installation instructions and an overview.
 
@@ -31,11 +31,11 @@ Incoming fare popups appear at the lower right and wait until combat ends. Expir
 
 Guildmates who enabled offers receive a popup with the requester's name, race, class, location and potential reward. Multiple helpers may accept a request, but each helper can hold only one accepted fare at a time. `/gpvp cancel` cancels your accepted fare; `/gpvp cancelrequest` withdraws your own request. These controls are also in the Points panel. The map marker follows the requester's position after resurrection.
 
-Cancellation notices are retried for up to 24 hours, including after a reload, until the other player's addon acknowledges them. Both players need to come online within that period for a missed notice to be delivered; a player can always cancel a fare locally.
+Cancellation notices are retried for up to 24 hours, including after a reload, until the other player's addon acknowledges them. Automated messages wait for confirmed online status, and player-not-found feedback stops further attempts until fresh online evidence arrives. Both players need to come online within that period for a missed notice to be delivered; a player can always cancel a fare locally.
 
 When another death updates an active request, existing helpers keep their original quoted rewards. If the newer alert has not expired when a helper finishes or cancels the earlier fare, it appears as a new offer; the ten-minute pair limit still applies. Guildmates should use the same current release for reliable handling of these repeated alerts.
 
-To complete a fare, both characters must be alive, in the same phase, within five feet, and visible to each other's addons. If the game cannot identify a nearby player automatically, both players should target each other. If the client withholds exact three-dimensional positions, the addon leaves the fare pending and does not award points. The request and fare can be cancelled; they survive ordinary addon reloads.
+To complete a fare, both characters must be alive, in the same phase, within five feet, and visible to each other's addons. If the game cannot identify a nearby player automatically, both players should target each other. If the client withholds exact three-dimensional positions, the addon leaves the fare pending and does not award points. Requests and fares expire 30 minutes after the original request. Later alerts cannot extend that deadline. They survive UI reloads but are cancelled when either participant logs out; one helper leaving does not cancel other helpers. The Kill Share window shows time remaining.
 
 ## PvP Points
 

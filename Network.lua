@@ -79,26 +79,12 @@ local function split(s)
     for part in (s .. "~"):gmatch("(.-)~") do t[#t+1] = part end
     return t
 end
-local function whisperTarget(target)
-    if not clean(target) or type(target)~="string" then return target end
-    -- Keep spaces in Forever character names. Strip only a verified local
-    -- realm suffix at the transport boundary; saved identities remain full.
-    local name,realm=target:match("^(.*)%-([^%-]+)$")
-    if not name or name=="" then return target end
-    local expected=fullKey(realm)
-    for _,fn in ipairs({GetNormalizedRealmName or false,GetRealmName or false}) do
-        local own=safe2(fn)
-        if clean(own) and type(own)=="string" and own~="" and fullKey(own)==expected then return name end
-    end
-    return target
-end
-
 local function send(kind, parts, target)
     if N.InInstance() and kind~="X" and kind~="Z" and kind~="K" then return false end
     if not GP.IsEligibleGuild() or not C_ChatInfo or not C_ChatInfo.SendAddonMessage then return false end
     local payload = kind .. "~" .. table.concat(parts, "~")
     if #payload > 240 then return false end
-    local ok, result = pcall(C_ChatInfo.SendAddonMessage, prefix, payload, target and "WHISPER" or "GUILD", target and whisperTarget(target))
+    local ok, result = true, GP.Comms.Send(prefix,payload,target)
     if not ok or not clean(result) then return false end
     -- Modern clients return an enum (zero is Success); older clients may
     -- return true or no value. Nonzero enum values include throttling,
@@ -351,6 +337,35 @@ end
 local function validAmount(value)
     return type(value)=="number" and value>=0 and value<=50 and value==math.floor(value)
 end
+function N.Deadline(id)
+    local stamp=type(id)=="string" and tonumber(id:match("^(%d+)%-"))
+    if not stamp or stamp>now()+5 then return 0 end
+    return stamp+1800
+end
+function N.Prune()
+    if N.active and (now()>=N.Deadline(N.active.id) or GP.Comms.Online(N.active.requester)==false) then
+        N.CancelFare(now()>=N.Deadline(N.active.id) and "Fare expired after 30 minutes." or "Fare cancelled: requester went offline.")
+    end
+    if N.request then
+        if now()>=N.Deadline(N.request.id) then N.CancelRequest("Request expired after 30 minutes.")
+        else
+            for peer,helper in pairs(N.request.helpers) do
+                if GP.Comms.Online(helper.name)==false then
+                    if N.QueueCancellation then N.QueueCancellation(helper.name,N.request.id,helper.revision,"R") end
+                    N.request.cancelled=N.request.cancelled or {}
+                    N.request.cancelled[peer]=helper.revision or 0
+                    N.request.helpers[peer]=nil
+                end
+            end
+        end
+    end
+    for token,offer in pairs(N.offers) do
+        if now()>=N.Deadline(offer.id) or GP.Comms.Online(offer.sender)==false then
+            N.offers[token]=nil
+            if GP.UI.RemoveOffer then GP.UI.RemoveOffer(token) end
+        end
+    end
+end
 function N.Initialize()
     N.initialized=true
     if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then pcall(C_ChatInfo.RegisterAddonMessagePrefix, prefix) end
@@ -428,9 +443,10 @@ function N.Initialize()
     elseif request~=nil then
         GP.db.outgoingRequest=nil; GP.Print("A saved request could not be restored.")
     end
-    N.CheckInstance()
+    N.Prune(); N.CheckInstance()
 end
 function N.Request(manual, death)
+    N.Prune()
     N.requestError=nil
     local function reject(message)
         N.requestError=message; GP.Print(message); return false
@@ -488,6 +504,7 @@ function N.Request(manual, death)
     return true
 end
 function N.Accept(id)
+    N.Prune()
     if N.InInstance() then GP.Print("Kill Share is disabled in instances."); return false end
     if N.active then GP.Print("Cancel or complete your current fare first."); return false end
     local offer = N.offers[id]
@@ -536,19 +553,20 @@ local function queueCancellation(peer,id,revision,role)
     GP.db.cancelOutbox[cancellationKey(peer,id,revision,role)]=entry
     sendCancellation(entry)
 end
-function N.CancelFare()
+N.QueueCancellation=queueCancellation
+function N.CancelFare(reason)
     if not N.active then GP.Print("No active fare."); return end
     queueCancellation(N.active.requester,N.active.id,N.active.revision,"H")
-    N.active=nil; GP.db.activeFare=nil; GP.Map.Clear(); GP.Print("Fare cancelled."); showDeferredOffers()
+    N.active=nil; GP.db.activeFare=nil; GP.Map.Clear(); GP.Print(reason or "Fare cancelled."); showDeferredOffers()
 end
-function N.CancelRequest()
+function N.CancelRequest(reason)
     N.ClearAnnouncements()
     if not N.request then GP.Print("No open request."); return end
     send("X",{N.request.id})
     for _,helper in pairs(N.request.helpers) do
         queueCancellation(helper.name,N.request.id,helper.revision,"R")
     end
-    N.request=nil; GP.db.outgoingRequest=nil; GP.Print("Request withdrawn.")
+    N.request=nil; GP.db.outgoingRequest=nil; GP.Print(reason or "Request withdrawn.")
 end
 
 function N.CheckInstance()
@@ -643,11 +661,14 @@ local function onMessage(message,sender,distribution)
     local resolved=rosterMember(sender)
     if not resolved or same(resolved,selfName()) then return end
     sender=resolved
+    N.Prune()
     local p=split(message)
     local kind,id=p[1],p[2]
     if N.InInstance() and kind~="X" and kind~="Z" and kind~="K" then return end
     if not id or #id>40 or not id:match("^%d+%-%d+$") then return end
+    if now()>=N.Deadline(id) and kind~="X" and kind~="Z" and kind~="K" and kind~="D" then return end
     if kind == "R" and distribution == "GUILD" and GP.db.settings.offers then
+        if GP.Comms.Online(sender)==false then return end
         local alreadyActive=N.active and N.active.id==id and same(sender,N.active.requester)
         local map,x,y=position(p,3)
         local stamp=number(p[8],0,4102444800)
@@ -677,6 +698,7 @@ local function onMessage(message,sender,distribution)
         if alreadyActive then N.offers[token].deferred=true; return end
         if GP.UI.ShowOffer then GP.UI.ShowOffer(token,N.offers[token],zone(map)) end
     elseif kind == "A" and distribution == "WHISPER" and N.request and N.request.id==id then
+        if GP.Comms.Online(sender)==false then return end
         local map,x,y=position(p,3); local proposed=number(p[6],0,50)
         local revision,revisionValid=parseRevision(p[7])
         if not map or not proposed or not revisionValid then return end
@@ -819,6 +841,22 @@ local function onMessage(message,sender,distribution)
     end
 end
 function N.OnEvent(event,...)
+    if event=="PLAYER_LOGOUT" then
+        local loggingOut=safe2(IsLoggingOut)
+        if not GP.reloading and (loggingOut==true or GP.logoutPending) then
+            if N.active then N.CancelFare() end
+            if N.request then N.CancelRequest() end
+        end
+        return
+    elseif event=="PLAYER_ENTERING_WORLD" then
+        local initial,reloading=...
+        if initial==true and reloading~=true then
+            if N.active then N.CancelFare() end
+            if N.request then N.CancelRequest() end
+        end
+        GP.reloading=nil; GP.logoutPending=nil
+    end
+    N.Prune()
     if N.CheckInstance() then
         if event~="CHAT_MSG_ADDON" then return end
         local _,message=...
@@ -889,6 +927,7 @@ function N.Update(elapsed)
     N.elapsed=N.elapsed+elapsed
     if N.elapsed<3 then return end
     N.elapsed=0
+    N.Prune()
     for id,entry in pairs(GP.db.cancelOutbox) do
         if now()>=entry.expires then GP.db.cancelOutbox[id]=nil
         elseif now()>=entry.nextAt then

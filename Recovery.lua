@@ -181,7 +181,7 @@ function R.Update(elapsed)
     if entry[2] and not member(entry[2]) then
         R.queued[entry[3]]=nil; table.remove(R.queue,1); return
     end
-    local ok,result=pcall(C_ChatInfo.SendAddonMessage,prefix,entry[1],entry[2] and "WHISPER" or "GUILD",entry[2])
+    local ok,result=pcall(GP.Comms.Send,prefix,entry[1],entry[2])
     if ok and not (issecretvalue and issecretvalue(result)) and (result==nil or result==true or result==0) then
         R.queued[entry[3]]=nil; table.remove(R.queue,1)
     end

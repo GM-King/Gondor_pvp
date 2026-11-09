@@ -5,6 +5,36 @@ local media = "Interface\\AddOns\\Gondor_PvP\\Media\\Cards\\"
 local pages = 9
 local function now() return (GetServerTime and GetServerTime()) or (time and time()) or 0 end
 
+-- Each window owns a separate range, including all of its descendants.
+local windows={}
+local function levels(frame,level,root)
+    if frame.SetFrameLevel then frame:SetFrameLevel(level) end
+    if frame~=root and not frame.gondorRaiseHook then
+        frame.gondorRaiseHook=true
+        frame:HookScript("OnMouseDown",function() root.gondorRaise() end)
+    end
+    if frame.GetChildren then
+        for _,child in ipairs({frame:GetChildren()}) do levels(child,level+1,root) end
+    end
+end
+local function raiseWindow(f)
+    for i,w in ipairs(windows) do if w==f then table.remove(windows,i); break end end
+    windows[#windows+1]=f
+    for i,w in ipairs(windows) do
+        levels(w,i*30,w)
+    end
+end
+local function window(f)
+    if f.gondorWindow then raiseWindow(f); return end
+    f.gondorWindow=true
+    f.gondorRaise=function() raiseWindow(f) end
+    f:SetClampedToScreen(true)
+    f:SetFrameStrata("DIALOG"); f:EnableMouse(true)
+    if f.SetToplevel then f:SetToplevel(true) end
+    f:HookScript("OnShow",function() raiseWindow(f) end)
+    f:HookScript("OnMouseDown",function() raiseWindow(f) end)
+    raiseWindow(f)
+end
 local function label(parent, size, x, y, width, height)
     local result = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     result:SetPoint("TOPLEFT", x, -y); result:SetSize(width, height)
@@ -14,6 +44,7 @@ end
 
 local function button(parent, caption, width, x, y, action)
     local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    b:HookScript("OnMouseDown",function() raiseWindow(parent) end)
     b:SetSize(width, 26); b:SetPoint("BOTTOMLEFT", x, y); b:SetText(caption); b:SetScript("OnClick", action)
     return b
 end
@@ -125,7 +156,7 @@ function UI.ShowCard(index, award)
         local v = CreateFrame("Frame", "GondorPvPCardViewer", UIParent, "BackdropTemplate")
         UI.viewer = v; v:SetSize(320, 630); v:SetPoint("CENTER"); v:SetFrameStrata("DIALOG")
         v:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8", edgeFile="Interface\\Buttons\\WHITE8X8", edgeSize=2})
-        v:SetBackdropColor(0.08,0.035,0.03,0.98); v:SetBackdropBorderColor(0.65,0.42,0.18,1)
+        v:SetBackdropColor(0.08,0.035,0.03,1); v:SetBackdropBorderColor(0.65,0.42,0.18,1)
         v.heading = label(v, 18, 10, 12, 300, 30)
         v.picture = art(v, 270, 480); v.picture:SetPoint("TOP", 0, -55)
         attachSheen(v,v.picture,270,480)
@@ -154,7 +185,7 @@ function UI.ShowCard(index, award)
     UI.viewer.heading:SetText(award and "NEW CARD UNLOCKED!" or "YOUR COLLECTION")
     setCardTexture(UI.viewer.picture,index)
     UI.viewer.caption:SetText(card.name .. "  |  " .. GP.Cards.thresholds[index] .. " honorable kills")
-    UI.viewer:Show()
+    window(UI.viewer); UI.viewer:Show()
     startSheen(UI.viewer)
 
 end
@@ -171,9 +202,9 @@ function UI.Build()
     local f = CreateFrame("Frame", "GondorPvPFrame", UIParent, "BackdropTemplate")
     if UISpecialFrames then table.insert(UISpecialFrames,"GondorPvPFrame") end
     f:SetScript("OnShow",UI.RefreshPlacement); f:SetScript("OnHide",UI.RefreshPlacement)
-    UI.frame = f; f:SetSize(780, 680); f:SetPoint("CENTER")
+    window(f); UI.frame = f; f:SetSize(780, 680); f:SetPoint("CENTER")
     f:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8", edgeFile="Interface\\Buttons\\WHITE8X8", edgeSize=2})
-    f:SetBackdropColor(0.08,0.035,0.03,0.98); f:SetBackdropBorderColor(0.65,0.42,0.18,1)
+    f:SetBackdropColor(0.08,0.035,0.03,1); f:SetBackdropBorderColor(0.65,0.42,0.18,1)
     f:SetMovable(true); f:EnableMouse(true); f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", f.StartMoving); f:SetScript("OnDragStop", f.StopMovingOrSizing)
     label(f, 24, 20, 14, 740, 34):SetText("GONDOR PvP — CARD BINDER")
@@ -272,10 +303,12 @@ local function refreshKillShare()
     local lines={"YOUR ACTIVE FARE"}
     if active then
         lines[#lines+1]="Helping " .. GP.DisplayName(active.requester) .. "  |  " .. active.amount .. " points"
+        lines[#lines+1]="Fare ends in "..math.max(0,math.ceil((GP.Network.Deadline(active.id)-now())/60)).." min."
     else lines[#lines+1]="No active fare." end
     lines[#lines+1]=""
     lines[#lines+1]="YOUR HELP REQUEST"
     if request then
+        lines[#lines+1]="Request ends in "..math.max(0,math.ceil((GP.Network.Deadline(request.id)-now())/60)).." min."
         local helpers={}
         for _,helper in pairs(request.helpers or {}) do
             if type(helper.name)=="string" then helpers[#helpers+1]=GP.DisplayName(helper.name) end
@@ -299,11 +332,12 @@ function UI.ShowKillShare()
     if not UI.killShare then
         local f=CreateFrame("Frame","GondorPvPKillShare",UIParent,"BackdropTemplate")
         if UISpecialFrames then table.insert(UISpecialFrames,"GondorPvPKillShare") end
-        UI.killShare=f; f:SetSize(430,460); f:SetPoint("CENTER"); f:SetFrameStrata("DIALOG")
+        UI.killShare=f; f:SetSize(430,550); f:SetPoint("CENTER"); f:SetFrameStrata("DIALOG")
         f:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8",edgeFile="Interface\\Buttons\\WHITE8X8",edgeSize=2})
-        f:SetBackdropColor(0.08,0.035,0.03,0.98); f:SetBackdropBorderColor(0.65,0.42,0.18,1)
-        label(f,20,10,12,410,30):SetText("KILL SHARE")
-        f.detail=label(f,12,25,52,380,305); f.detail:SetJustifyH("LEFT"); f.detail:SetJustifyV("TOP")
+        f:SetBackdropColor(0.08,0.035,0.03,1); f:SetBackdropBorderColor(0.65,0.42,0.18,1)
+        label(f,20,10,25,300,30):SetText("KILL SHARE")
+        local picture=art(f,90,90); picture:SetPoint("TOPRIGHT",-15,-8); picture:SetTexture("Interface\\AddOns\\Gondor_PvP\\Media\\Peon")
+        f.detail=label(f,12,25,110,380,330); f.detail:SetJustifyH("LEFT"); f.detail:SetJustifyV("TOP")
         button(f,"Retry announcement",180,125,12,function() GP.Network.RetryAnnouncement(); refreshKillShare() end)
         button(f,"Request help",150,45,80,function() GP.Network.Request(true); refreshKillShare() end)
         button(f,"Cancel my fare",150,235,80,function() GP.Network.CancelFare(); refreshKillShare() end)
@@ -314,7 +348,7 @@ function UI.ShowKillShare()
             if self.refreshElapsed>=1 then self.refreshElapsed=0; refreshKillShare() end
         end)
     end
-    refreshKillShare(); UI.killShare:Show()
+    refreshKillShare(); window(UI.killShare); UI.killShare:Show()
 end
 
 function UI.ShowPoints()
@@ -323,7 +357,7 @@ function UI.ShowPoints()
         if UISpecialFrames then table.insert(UISpecialFrames,"GondorPvPPoints") end
         UI.pointFrame=f; f:SetSize(430,400); f:SetPoint("CENTER"); f:SetFrameStrata("DIALOG")
         f:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8",edgeFile="Interface\\Buttons\\WHITE8X8",edgeSize=2})
-        f:SetBackdropColor(0.08,0.035,0.03,0.98); f:SetBackdropBorderColor(0.65,0.42,0.18,1)
+        f:SetBackdropColor(0.08,0.035,0.03,1); f:SetBackdropBorderColor(0.65,0.42,0.18,1)
         f.title=label(f,20,10,12,410,30)
         f.history=label(f,12,25,60,380,250); f.history:SetJustifyH("LEFT"); f.history:SetJustifyV("TOP")
         button(f,"Cancel my fare",150,45,50,function() GP.Network.CancelFare(); f:Hide() end)
@@ -347,7 +381,7 @@ function UI.ShowPoints()
     lines[#lines+1]=GP.Network.active and ("Active fare: " .. GP.DisplayName(GP.Network.active.requester)) or "No active fare."
     UI.pointFrame.title:SetText("PvP POINTS: " .. GP.Network.Points())
     UI.pointFrame.history:SetText(table.concat(lines,"\n"))
-    UI.pointFrame:Show()
+    window(UI.pointFrame); UI.pointFrame:Show()
 end
 
 local function checkbox(parent, title, y, key)
@@ -360,7 +394,7 @@ local function checkbox(parent, title, y, key)
 end
 function UI.ToggleSettings()
     if UI.settings then
-        if UI.settings:IsShown() then UI.settings:Hide() else UI.settings:Show() end
+        if UI.settings:IsShown() then UI.settings:Hide() else raiseWindow(UI.settings); UI.settings:Show() end
         return
     end
     local s=CreateFrame("Frame", "GondorPvPSettings", UIParent, "BackdropTemplate")
@@ -368,7 +402,7 @@ function UI.ToggleSettings()
     s:SetScript("OnShow",UI.RefreshPlacement); s:SetScript("OnHide",UI.RefreshPlacement)
     UI.settings=s; s:SetSize(420,390); s:SetPoint("CENTER"); s:SetFrameStrata("DIALOG")
     s:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8",edgeFile="Interface\\Buttons\\WHITE8X8",edgeSize=2})
-    s:SetBackdropColor(0.08,0.035,0.03,0.98); s:SetBackdropBorderColor(0.65,0.42,0.18,1)
+    s:SetBackdropColor(0.08,0.035,0.03,1); s:SetBackdropBorderColor(0.65,0.42,0.18,1)
     label(s,20,10,14,400,30):SetText("GONDOR PvP SETTINGS")
     checkbox(s,"PvP death alerts",55,"alerts")
     checkbox(s,"Incoming Kill Share offers",92,"offers")
@@ -389,7 +423,7 @@ function UI.ToggleSettings()
         channel:ClearFocus(); expiry:ClearFocus(); s:Hide()
     end)
     button(s,"Close",110,250,24,function() s:Hide() end)
-    s:Show(); UI.RefreshPlacement()
+    window(s); s:Show(); UI.RefreshPlacement()
 end
 
 function UI.QueueOffer(token,offer,zone,first)
@@ -417,11 +451,12 @@ function UI.ShowOffer(token, offer, zone)
     if UI.InCombat() then UI.QueueOffer(token,offer,zone); return end
     if not UI.offer then
         local f=CreateFrame("Frame","GondorPvPOffer",UIParent,"BackdropTemplate")
-        UI.offer=f; f:SetSize(370,190); f:SetPoint("BOTTOMRIGHT",UIParent,"BOTTOMRIGHT",-40,180); f:SetClampedToScreen(true); f:SetFrameStrata("DIALOG")
+        UI.offer=f; f:SetSize(370,280); f:SetPoint("BOTTOMRIGHT",UIParent,"BOTTOMRIGHT",-40,180); f:SetClampedToScreen(true); f:SetFrameStrata("DIALOG")
         f:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8",edgeFile="Interface\\Buttons\\WHITE8X8",edgeSize=2})
-        f:SetBackdropColor(0.10,0.04,0.03,0.98); f:SetBackdropBorderColor(0.7,0.45,0.2,1)
+        f:SetBackdropColor(0.10,0.04,0.03,1); f:SetBackdropBorderColor(0.7,0.45,0.2,1)
         f.title=label(f,17,10,12,350,26)
-        f.detail=label(f,12,20,47,330,70)
+        local picture=art(f,160,80); picture:SetPoint("TOP",0,-42); picture:SetTexture("Interface\\AddOns\\Gondor_PvP\\Media\\Chopper")
+        f.detail=label(f,12,20,133,330,70)
         button(f,"Accept",115,55,20,function()
             local selected=f.token; if selected and GP.Network.Accept(selected) then f:Hide() end
         end)
@@ -443,7 +478,7 @@ function UI.ShowOffer(token, offer, zone)
     f.detail:SetText(string.format("%s — %s %s\n%s (%.1f, %.1f)\nPotential reward: %s PvP Points",
         GP.DisplayName(offer.sender),offer.race or "Unknown",offer.class or "Unknown",zone,offer.x*100,offer.y*100,
         offer.quote and tostring(offer.quote) or "unavailable"))
-    f:Show()
+    window(f); f:Show()
 end
 
 function UI.RemoveOffer(token)

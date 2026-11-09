@@ -12,6 +12,75 @@ function GP.Print(text)
     if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("|cffffce75Gondor PvP|r: " .. text) end
 end
 
+-- Shared transport for both fare and backup prefixes.
+GP.Comms={blocked={},recent={},offline={}}
+local C=GP.Comms
+local function clock() return (GetServerTime and GetServerTime()) or time() end
+local function identity(name) return type(name)=="string" and name:lower():gsub("%s+","") end
+function C.Online(target)
+    if not GP.IsEligibleGuild() or not GetNumGuildMembers or not GetGuildRosterInfo then return end
+    local ok,count=pcall(GetNumGuildMembers,true)
+    if not ok or (issecretvalue and issecretvalue(count)) then return end
+    if type(count)~="number" or count<0 or count>2000 then return end
+    local found,online=0,nil
+    for i=1,count do
+        local ok,name,_,_,_,_,_,_,_,connected=pcall(GetGuildRosterInfo,i)
+        if not ok or (issecretvalue and (issecretvalue(name) or issecretvalue(connected))) then return end
+        if identity(name)==identity(target) or (type(name)=="string" and not name:find("-",1,true) and identity(name)==identity(target:match("^[^-]+"))) then
+            found=found+1
+            if type(connected)=="boolean" and not (issecretvalue and issecretvalue(connected)) then online=connected end
+        end
+    end
+    if found~=1 then return end
+    local key=identity(target)
+    if online==false then C.offline[key]=true
+    elseif online==true and C.offline[key] then C.offline[key]=nil; C.blocked[key]=nil end
+    return online
+end
+function C.Send(prefix,payload,target)
+    if not GP.IsEligibleGuild() or not C_ChatInfo or not C_ChatInfo.SendAddonMessage then return false end
+    if target then
+        local online=C.Online(target)
+        if online~=true or C.blocked[identity(target)] then
+            if (not C.refreshAt or clock()>=C.refreshAt) and C_GuildInfo and C_GuildInfo.GuildRoster then
+                C.refreshAt=clock()+15; pcall(C_GuildInfo.GuildRoster)
+            end
+            return false
+        end
+    end
+    local transport=target
+    if target then
+        local name,realm=target:match("^(.*)%-([^%-]+)$")
+        for _,fn in ipairs({GetNormalizedRealmName or false,GetRealmName or false}) do
+            if type(fn)=="function" then
+                local ok,own=pcall(fn)
+                if ok and name and identity(own)==identity(realm) then transport=name end
+            end
+        end
+        C.recent[identity(target)]={name=transport,at=clock()}
+    end
+    local ok,result=pcall(C_ChatInfo.SendAddonMessage,prefix,payload,target and "WHISPER" or "GUILD",transport)
+    if ok and not (issecretvalue and issecretvalue(result)) and target and Enum and Enum.SendAddonMessageResult
+        and Enum.SendAddonMessageResult.InvalidTarget and result==Enum.SendAddonMessageResult.InvalidTarget then C.blocked[identity(target)]=true end
+    return ok and not (issecretvalue and issecretvalue(result)) and (result==nil or result==true or result==0)
+end
+function C.OnEvent(event,...)
+    if event=="CHAT_MSG_SYSTEM" then
+        local message=...
+        if type(message)~="string" or not ERR_CHAT_PLAYER_NOT_FOUND_S then return end
+        for key,entry in pairs(C.recent) do
+            if clock()-entry.at<=5 and message==string.format(ERR_CHAT_PLAYER_NOT_FOUND_S,entry.name) then C.blocked[key]=true end
+        end
+    elseif event=="CHAT_MSG_ADDON" then
+        local prefix,_,_,sender=...
+        if (prefix=="GONDPVP1" or prefix=="GONDPVPBACK1") and type(sender)=="string" then
+            for key in pairs(C.blocked) do
+                if key==identity(sender) then C.blocked[key]=nil end
+            end
+        end
+    end
+end
+
 function GP.Initialize()
     if type(GondorPvPCharacter) ~= "table" then GondorPvPCharacter = {} end
     local db = GondorPvPCharacter
@@ -91,7 +160,7 @@ local function scheduleCardRefresh(delay)
         C_Timer.After(delay, function() if GP.db and GP.Cards then GP.Cards.Refresh() end end)
     end
 end
-for _, event in ipairs({"ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_PVP_KILLS_CHANGED", "CHAT_MSG_COMBAT_HONOR_GAIN",
+for _, event in ipairs({"PLAYER_LOGOUT", "CHAT_MSG_SYSTEM", "ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_PVP_KILLS_CHANGED", "CHAT_MSG_COMBAT_HONOR_GAIN",
     "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "UI_SCALE_CHANGED", "DISPLAY_SIZE_CHANGED", "ZONE_CHANGED_NEW_AREA", "PLAYER_DEAD", "PLAYER_ALIVE", "PLAYER_UNGHOST", "CHANNEL_UI_UPDATE", "CHAT_MSG_CHANNEL_NOTICE", "CHAT_MSG_ADDON", "GROUP_ROSTER_UPDATE", "GUILD_ROSTER_UPDATE", "PLAYER_GUILD_UPDATE"}) do
     pcall(frame.RegisterEvent, frame, event)
 end
@@ -101,6 +170,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
         GP.Initialize()
     elseif event ~= "ADDON_LOADED" and GP.db then
         if event == "PLAYER_LOGIN" then GP.Map.Initialize(); GP.Network.Initialize(); GP.UI.BuildMinimap() end
+        GP.Comms.OnEvent(event, ...)
         if GP.UI.OnEvent then GP.UI.OnEvent(event) end
         GP.Network.OnEvent(event, ...)
         if GP.Recovery then GP.Recovery.OnEvent(event, ...) end
@@ -131,4 +201,15 @@ SlashCmdList.GONDORPVP = function(message)
     elseif command == "settings" then GP.UI.ToggleSettings()
     elseif command == "help" then GP.Print("/gpvp opens your binder. /gpvp request, retry, status, cancel, cancelrequest, or settings.")
     else GP.UI.Toggle() end
+end
+
+-- Reloads preserve fares; ordinary shutdowns withdraw them.
+if hooksecurefunc then
+    local function reload() GP.reloading=true end
+    if type(ReloadUI)=="function" then pcall(hooksecurefunc,"ReloadUI",reload) end
+    if C_UI and type(C_UI.Reload)=="function" then pcall(hooksecurefunc,C_UI,"Reload",reload) end
+    for _,name in ipairs({"Logout","Quit"}) do
+        if type(_G[name])=="function" then pcall(hooksecurefunc,name,function() GP.logoutPending=true end) end
+    end
+    if type(CancelLogout)=="function" then pcall(hooksecurefunc,"CancelLogout",function() GP.logoutPending=nil end) end
 end
