@@ -6,7 +6,7 @@ A PvP card binder and guild help system for **Gondor Calls for Raid** on WoW For
 
 ## Download
 
-**[Download Gondor PvP 0.9.9 beta (75.4 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.9-beta/Gondor_PvP.zip)**
+**[Download Gondor PvP 0.9.10 beta (75.4 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.10-beta/Gondor_PvP.zip)**
 
 Visit the [Gondor PvP website](https://gm-king.github.io/Gondor_pvp/) for installation instructions and an overview.
 
@@ -25,7 +25,7 @@ Lifetime honorable-kill milestones unlock 69 cards for each character. The first
 
 ## Alerts and Kill Share
 
-An enabled death alert announces your zone and map coordinates and sends an addon request to your guild. If the client does not expose a reliable PvP classification, a confirmation asks whether to send the alert. Open **Kill Share** in the binder to request help and see your active fare and responding guildmates, or use `/gpvp request`. Manual requests have a ten-minute cooldown; each new death reduces the remaining cooldown by five minutes.
+With PvP death alerts enabled, confirmed and uncertain PvP deaths ask whether to request help. Only clicking **Request help** announces your zone and death coordinates and sends an offer to your guild. **Decline**, Escape, or letting the prompt expire sends nothing. Declining a later death leaves any earlier request and responding helpers active. Open **Kill Share** in the binder to request help and see your active fare and responding guildmates, or use `/gpvp request`. Manual requests have a ten-minute cooldown; each new death reduces the remaining cooldown by five minutes.
 
 Incoming fare popups appear at the lower right and wait until combat ends. Expiry continues while hidden, so expired or withdrawn offers do not reappear. Upgrading changes the former 15-second default to 60 seconds once; other saved durations are preserved. Character names are displayed without realm suffixes.
 

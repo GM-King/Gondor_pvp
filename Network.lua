@@ -454,7 +454,8 @@ function N.Request(manual, death)
     if N.InInstance() then return reject("Kill Share is disabled in instances.") end
     if not GP.IsEligibleGuild() then return reject("Kill Share is available to "..GP.guildName.." members.") end
     if manual and N.pendingAnnouncement then return reject("Announcement pending; please wait.") end
-    if death and N.deathSerial and N.alertedDeathSerial==N.deathSerial then return false end
+    if death and (not GP.db.settings.alerts or not N.deathSerial or N.confirmedDeathSerial~=N.deathSerial
+        or N.alertedDeathSerial==N.deathSerial) then return false end
     if manual and now() < (GP.db.manualReadyAt or 0) then return reject("Request available in " .. math.ceil(((GP.db.manualReadyAt or 0)-now())/60) .. " min.") end
     local map, x, y
     if death then
@@ -639,20 +640,37 @@ local function classifyRecap(deathAt)
     return "unknown"
 end
 
+local function promptDeath(serial)
+    if N.promptedDeathSerial==serial then return end
+    N.promptedDeathSerial=serial
+    N.pendingDeathSerial=serial
+    if GP.UI.ConfirmDeath then GP.UI.ConfirmDeath(serial) end
+end
+
+function N.RespondToDeathPrompt(serial, accepted)
+    if not serial or serial~=N.deathSerial or serial~=N.pendingDeathSerial then return false end
+    N.pendingDeathSerial=nil
+    if not accepted or not GP.db.settings.alerts or N.InInstance() or not GP.IsEligibleGuild() then return false end
+    N.confirmedDeathSerial=serial
+    local sent=N.Request(false,true)
+    N.confirmedDeathSerial=nil
+    return sent
+end
+
 local function inspectDeath(serial, attempt, deathAt)
     if N.InInstance() then return end
     if serial ~= N.deathSerial or not GP.db.settings.alerts or not GP.IsEligibleGuild() then return end
     local result = classifyRecap(deathAt)
     N.lastDeathClassification=result
     if result == "pvp" then
-        N.Request(false, true)
+        promptDeath(serial)
     elseif result == "unknown" then
         local delays = {0.3, 0.7, 1}
         if attempt < #delays then
             local callback = function() inspectDeath(serial, attempt + 1, deathAt) end
             if C_Timer and C_Timer.After then C_Timer.After(delays[attempt + 1], callback) else callback() end
-        elseif GP.UI.ConfirmDeath then
-            GP.UI.ConfirmDeath(serial)
+        else
+            promptDeath(serial)
         end
     end
 end
@@ -893,6 +911,7 @@ function N.OnEvent(event,...)
         local knownNone=IsInGuild and clean(inGuild) and inGuild==false
         if clean(unit) and (not unit or unit=="player") and (knownOther or knownNone) then
             N.ClearAnnouncements()
+            N.pendingDeathSerial=nil; N.confirmedDeathSerial=nil
             N.active=nil; N.request=nil; N.offers={}; N.buffered={}; N.seenRequests={}; GP.db.cancelOutbox={}
             GP.db.activeFare=nil; GP.db.outgoingRequest=nil; GP.Map.Clear()
             if GP.UI.ClearOffers then GP.UI.ClearOffers() end
@@ -907,6 +926,7 @@ function N.OnEvent(event,...)
             end
             N.deathPosition=map and {map,x,y} or nil
             N.deathSerial=(N.deathSerial or 0)+1
+            N.pendingDeathSerial=nil; N.confirmedDeathSerial=nil
             N.ClearAnnouncements()
             if StaticPopup_Hide then pcall(StaticPopup_Hide,"GONDOR_PVP_DEATH") end
             if GP.db.settings.alerts then

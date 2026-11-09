@@ -513,9 +513,12 @@ function UI.ConfirmDeath(serial)
     if not StaticPopupDialogs.GONDOR_PVP_DEATH then
         StaticPopupDialogs.GONDOR_PVP_DEATH={
             text="Were you killed in PvP? Send a Gondor PvP help alert?",
-            button1="Send alert", button2="Dismiss", timeout=15, whileDead=true, hideOnEscape=true,
+            button1="Request help", button2="Decline", timeout=15, whileDead=true, hideOnEscape=true,
             OnAccept=function(_,data)
-                if data==GP.Network.deathSerial and GP.db.settings.alerts then GP.Network.Request(false,true) end
+                GP.Network.RespondToDeathPrompt(data,true)
+            end,
+            OnCancel=function(_,data)
+                GP.Network.RespondToDeathPrompt(data,false)
             end,
         }
     end
