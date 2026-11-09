@@ -9,6 +9,10 @@ local function now() return (GetServerTime and GetServerTime()) or (time and tim
 local windows={}
 local function levels(frame,level,root)
     if frame.SetFrameLevel then frame:SetFrameLevel(level) end
+    -- Automatic top-level raising can promote the launcher after its click
+    -- opens a different window. Keep stacking entirely under this manager.
+    if frame.SetToplevel then frame:SetToplevel(false) end
+    frame:SetFrameStrata("DIALOG")
     if frame~=root and not frame.gondorRaiseHook then
         frame.gondorRaiseHook=true
         frame:HookScript("OnMouseDown",function() root.gondorRaise() end)
@@ -17,11 +21,19 @@ local function levels(frame,level,root)
         for _,child in ipairs({frame:GetChildren()}) do levels(child,level+1,root) end
     end
 end
+local restackPending=false
+local function restack()
+    for i,w in ipairs(windows) do levels(w,i*30,w) end
+end
 local function raiseWindow(f)
     for i,w in ipairs(windows) do if w==f then table.remove(windows,i); break end end
     windows[#windows+1]=f
-    for i,w in ipairs(windows) do
-        levels(w,i*30,w)
+    restack()
+    -- Reapply the latest order after the client's click/show dispatch finishes.
+    -- A later opened window wins even when several opens share the same frame.
+    if not restackPending and C_Timer and C_Timer.After then
+        restackPending=true
+        C_Timer.After(0,function() restackPending=false; restack() end)
     end
 end
 local function window(f)
@@ -30,7 +42,7 @@ local function window(f)
     f.gondorRaise=function() raiseWindow(f) end
     f:SetClampedToScreen(true)
     f:SetFrameStrata("DIALOG"); f:EnableMouse(true)
-    if f.SetToplevel then f:SetToplevel(true) end
+    if f.SetToplevel then f:SetToplevel(false) end
     f:HookScript("OnShow",function() raiseWindow(f) end)
     f:HookScript("OnMouseDown",function() raiseWindow(f) end)
     raiseWindow(f)
