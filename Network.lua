@@ -324,7 +324,7 @@ function N.Points()
     for _, record in pairs(GP.db and GP.db.receipts or {}) do
         if N.ValidReceipt(record) then sum = sum + record.amount end
     end
-    return sum
+    return sum + (GP.KoS and GP.KoS.Points() or 0)
 end
 local function validId(id)
     return type(id)=="string" and #id<=40 and id:match("^%d+%-%d+$")~=nil

@@ -6,7 +6,7 @@ A PvP card binder and guild help system for **Gondor Calls for Raid** on WoW For
 
 ## Download
 
-**[Download Gondor PvP 0.9.10 beta (75.4 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.10-beta/Gondor_PvP.zip)**
+**[Download Gondor PvP 0.9.11 beta (78.1 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.11-beta/Gondor_PvP.zip)**
 
 Visit the [Gondor PvP website](https://gm-king.github.io/Gondor_pvp/) for installation instructions and an overview.
 
@@ -75,3 +75,15 @@ Before release, verify in Forever: addon loading and saved settings; card reveal
 
 The source project's `Development/FOREVER_TEST_GUIDE.md` provides a detailed guild test procedure and result-recording checklist.
 
+
+## 0.9.11 beta — shared Kill on Sight
+
+Open **Kill on Sight** in the binder or use `/gpvp kos`. Gondor members can right-click an identifiable Alliance target portrait and choose **Gondor KoS**. Reasons allow 100 characters and cannot be edited after addition. Click a name to see its reason, contributor, race, class and last-seen level. Missing attributes display as Unknown until observed. Manual deletion requires confirmation. Entries expire after ten days without a newer guild sighting; editing a reason does not extend that time.
+
+The shared list holds 100 active players. Nearby nameplates, targets, focus and mouseover provide open-world sightings when the client exposes identities. Sightings update across the guild through paced addon messages. Each member hears the supplied warning locally, while coordinated channel announcements have a ten-minute cooldown per target. The KoS window has a local sound toggle.
+
+A verified player/pet killing blow on an active KoS target adds five points. Distinct later kills can award again. KoS reward receipts survive reload and are backed up through updated guildmates. Restricted or missing killer/victim identifiers cannot award points; inspect KoS status and record this as a blocked live test. Existing fare rewards remain separate.
+
+This beta includes the shared Kill on Sight list. Offline checks pass; live-client compatibility still requires guild testing. No live verification is claimed.
+
+Manual KoS removals announce the target and deleting member in `gcfrpvp`. The deleting player gets an Undo window for 60 seconds and can reopen it with **Undo deletes** in the KoS screen. The deadline survives reload. Undo restores the original reason, contributor, attributes and sighting time, and announces the restoration. A full list must have a slot freed before the deadline; an entry already replaced or deleted again cannot be undone. Automatic ten-day expiry stays quiet.

@@ -194,12 +194,13 @@ SLASH_GONDORPVP2 = "/gondorpvp"
 SlashCmdList.GONDORPVP = function(message)
     local command = (message or ""):lower():match("^%s*(%S*)")
     if command == "request" then GP.Network.Request(true)
+    elseif command == "kos" then GP.UI.ShowKoS()
     elseif command == "status" then GP.Network.PrintStatus()
     elseif command == "retry" then GP.Network.RetryAnnouncement()
     elseif command == "cancel" then GP.Network.CancelFare()
     elseif command == "cancelrequest" then GP.Network.CancelRequest()
     elseif command == "settings" then GP.UI.ToggleSettings()
-    elseif command == "help" then GP.Print("/gpvp opens your binder. /gpvp request, retry, status, cancel, cancelrequest, or settings.")
+    elseif command == "help" then GP.Print("/gpvp opens your binder. /gpvp kos, request, retry, status, cancel, cancelrequest, or settings.")
     else GP.UI.Toggle() end
 end
 

@@ -603,3 +603,8 @@ dialog p {
     animation:none
   }
 }
+
+/* Keep the KoS illustration and navigation comfortable on small screens. */
+header { gap:20px; }
+nav { flex-wrap:wrap; justify-content:flex-end; column-gap:20px; row-gap:8px; }
+.kos-art img { max-height:540px; object-fit:contain; }

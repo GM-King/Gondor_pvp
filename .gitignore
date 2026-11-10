@@ -31,3 +31,6 @@
 !/docs/assets/**
 
 !/Recovery.lua
+
+!/KoS.lua
+!/KoSSync.lua

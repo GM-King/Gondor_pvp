@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&amp;family=Barlow:wght@400;500;600;700&amp;display=swap">
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 <script src="script.js?v=4" defer>
 </script>
 </head>
@@ -24,6 +24,7 @@
 </a>
 <nav aria-label="Main navigation">
 <a href="#guide">Field guide</a>
+<a href="#kos">Kill on Sight</a>
 <a href="#install">Install</a>
 <a href="https://github.com/GM-King/Gondor_pvp">GitHub ↗</a>
 </nav>
@@ -39,11 +40,11 @@
 </p>
 <p class="lead">Collect cards from honorable kills. Rally your guildmates. Earn points for showing up when the fight finds them.</p>
 <div class="actions">
-<a class="button" href="https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.10-beta/Gondor_PvP.zip?art=fee93634">Download beta <span aria-hidden="true">↓</span>
+<a class="button" href="https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.11-beta/Gondor_PvP.zip">Download beta <span aria-hidden="true">↓</span>
 </a>
 <a href="#guide">How to play ↘</a>
 </div>
-<p class="meta">WoW Forever · 0.9.10 beta · 75.4 MiB</p>
+<p class="meta">WoW Forever · 0.9.11 beta · 78.1 MiB</p>
 </div>
 <div class="sergeant-stage">
 <div class="speech" aria-hidden="true">
@@ -103,7 +104,7 @@
 <h3>Your kills.<br>Your collection.</h3>
 <p>Your existing lifetime honorable kills count. The first card unlocks at <strong>5 kills</strong>, with <strong>69 cards</strong> to earn through 1,000 kills.</p>
 <p>Open your binder with <code>/gpvp</code>. Click an unlocked card to inspect it, then use <strong>Previous</strong> and <strong>Next</strong> to browse. The rest stay a surprise.</p>
-<aside class="note">Start here → Open <strong>Settings</strong> and choose <strong>PvP death alerts</strong> and <strong>Incoming Kill Share offers</strong>. Both start off.</aside>
+<aside class="note">Start here → Open <strong>Settings</strong> and choose <strong>PvP death alerts</strong> and <strong>Incoming Kill Share offers</strong>. Both are enabled for new characters; your saved choices are preserved.</aside>
 </div>
 <figure>
 <a href="assets/binder.png" data-preview>
@@ -118,7 +119,7 @@
 <span class="step">02 / CALL FOR BACKUP</span>
 <h3>Bad odds?<br>Make some noise.</h3>
 <p>In the binder, choose <strong>Kill Share → Request help</strong>, or type <code>/gpvp request</code>. Your responding guildmates appear in the Kill Share panel.</p>
-<p>With death alerts enabled, a PvP death can send the call too. If the client needs confirmation, answer the prompt.</p>
+<p>With death alerts enabled, a PvP death asks whether to request help. Only choosing <strong>Request help</strong> sends the call; declining, Escape or timeout sends nothing.</p>
 <aside class="note">Change of plans? <strong>Withdraw request</strong> ends your own call. <strong>Cancel my fare</strong> ends the help job you accepted.</aside>
 </div>
 <figure>
@@ -135,7 +136,7 @@
 <h3>See the offer.<br>Be the backup.</h3>
 <p>Enable <strong>Incoming Kill Share offers</strong> in Settings. Each popup shows who needs help, their location, and the potential points.</p>
 <p>Select <strong>Accept</strong> and follow the requester’s map pin. You can help one accepted fare at a time.</p>
-<aside class="note">Offer too quick? In Settings, adjust its expiry from <strong>5 to 60 seconds</strong>. The default is 15.</aside>
+<aside class="note">Offer too quick? In Settings, adjust its expiry from <strong>5 to 60 seconds</strong>. The default is 60 seconds.</aside>
 </div>
 <figure>
 <a class="offer-preview" href="assets/offer.png" data-preview>
@@ -155,15 +156,38 @@
 <span class="finish-mark" aria-hidden="true">↗</span>
 </article>
 </section>
+<section class="guide wrap" id="kos" aria-labelledby="kos-title">
+<div class="section-heading">
+<div><p class="eyebrow">BY ORDER OF THE DOCTOR OF WAR</p><h2 id="kos-title">Kill on Sight.</h2></div>
+<p>One shared list.<br>Your guild knows who to watch.</p>
+</div>
+<article class="guide-row">
+<div>
+<span class="step">05 / MARK THE TARGET</span>
+<h3>Remember the name.<br>Recognise the threat.</h3>
+<p>Open <strong>Kill on Sight</strong> in the binder or type <code>/gpvp kos</code>. All Gondor Calls for Raid members with the updated addon share a list of up to <strong>100 Alliance targets</strong>. Changes sync between online guildmates, with catch-up when they return.</p>
+<p><strong>Right-click an Alliance character portrait → Gondor KoS</strong> to add them. Give a reason of up to <strong>100 characters</strong>; the original reason stays read-only. A crosshair marks listed target and focus portraits, including Z-Perl frames.</p>
+<p>Click a name to see the <strong>reason, who added them, race, class and last-seen level</strong>. The list shows time since the latest guild sighting. Older entries show unknown attributes until someone sees the target again.</p>
+<p>Spot an identifiable, living target nearby in the open world and hear a <strong>local warning sound</strong>. Sightings are announced in <code>gcfrpvp</code>, limited to once per target every <strong>ten minutes</strong>. Each encountering member has their own sound warning and can turn it off in the KoS window.</p>
+<p>A verified killing blow by you or your pet earns <strong>5 PvP points</strong> and announces the kill in <code>gcfrpvp</code>. Each distinct later kill can earn another five. Alerts and rewards operate in the open world; if Forever hides the required kill evidence, no points are awarded.</p>
+<p><strong>Delete</strong> asks for confirmation and announces who removed the target in <code>gcfrpvp</code>. The deleting player has <strong>60 seconds to Undo</strong>, including across a reload. Restoring an entry preserves its original reason, contributor, details and sighting time, and announces the restoration. Undo needs a free list slot.</p>
+<aside class="note">Targets unseen by the guild for <strong>ten days</strong> are automatically removed. Automatic expiry is quiet and preserves earned points. Manual deletions can be undone using the popup or <strong>Undo deletes</strong>.</aside>
+</div>
+<figure class="kos-art">
+<img src="assets/kos-orc.png" width="470" height="836" loading="lazy" alt="Orc gunslinger aiming a pistol, the artwork used in the Kill on Sight window">
+<figcaption>By order of the Doctor of War <span>Gondor Kill on Sight</span></figcaption>
+</figure>
+</article>
+</section>
 <section class="beta wrap">
 <div>
-<p class="eyebrow">BETA 0.9.10</p>
+<p class="eyebrow">BETA 0.9.11</p>
 <h2>Still sharpening the axe.</h2>
 </div>
 <div>
-<p>Offline checks pass. Live-client gameplay verification is pending. Death detection, channel delivery, map pins, and precise positioning need testing in Forever.</p>
+<p>Offline checks pass. Live-client gameplay verification is pending. Death detection, channel delivery, map pins, precise positioning and KoS killing-blow verification depend on the APIs available in Forever. Test these with guildmates before relying on rewards.</p>
 <div class="links">
-<a href="https://github.com/GM-King/Gondor_pvp/releases/tag/v0.9.10-beta">Release notes ↗</a>
+<a href="https://github.com/GM-King/Gondor_pvp/releases/tag/v0.9.11-beta">Release notes ↗</a>
 <a href="https://github.com/GM-King/Gondor_pvp/issues">Report an issue ↗</a>
 </div>
 </div>
