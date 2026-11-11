@@ -69,6 +69,8 @@ end
 function C.OnEvent(event,...)
     if event=="CHAT_MSG_SYSTEM" then
         local message=...
+        -- System chat can be protected; even equality comparisons are forbidden.
+        if issecretvalue and issecretvalue(message) then return end
         if type(message)~="string" or not ERR_CHAT_PLAYER_NOT_FOUND_S then return end
         for key,entry in pairs(C.recent) do
             if clock()-entry.at<=5 and message==string.format(ERR_CHAT_PLAYER_NOT_FOUND_S,entry.name) then C.blocked[key]=true end

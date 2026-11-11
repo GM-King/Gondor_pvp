@@ -6,7 +6,7 @@ A PvP card binder and guild help system for **Gondor Calls for Raid** on WoW For
 
 ## Download
 
-**[Download Gondor PvP 0.9.12 beta (78.1 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.12-beta/Gondor_PvP.zip)**
+**[Download Gondor PvP 0.9.13 beta (78.1 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.13-beta/Gondor_PvP.zip)**
 
 Visit the [Gondor PvP website](https://gm-king.github.io/Gondor_pvp/) for installation instructions and an overview.
 
