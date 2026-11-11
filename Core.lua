@@ -22,12 +22,12 @@ function C.Online(target)
     local ok,count=pcall(GetNumGuildMembers,true)
     if not ok or (issecretvalue and issecretvalue(count)) then return end
     if type(count)~="number" or count<0 or count>2000 then return end
-    local found,online=0,nil
+    local found,online,recipient=0,nil,nil
     for i=1,count do
         local ok,name,_,_,_,_,_,_,_,connected=pcall(GetGuildRosterInfo,i)
         if not ok or (issecretvalue and (issecretvalue(name) or issecretvalue(connected))) then return end
         if identity(name)==identity(target) or (type(name)=="string" and not name:find("-",1,true) and identity(name)==identity(target:match("^[^-]+"))) then
-            found=found+1
+            found=found+1; recipient=name
             if type(connected)=="boolean" and not (issecretvalue and issecretvalue(connected)) then online=connected end
         end
     end
@@ -35,22 +35,24 @@ function C.Online(target)
     local key=identity(target)
     if online==false then C.offline[key]=true
     elseif online==true and C.offline[key] then C.offline[key]=nil; C.blocked[key]=nil end
-    return online
+    return online,recipient
 end
 function C.Send(prefix,payload,target)
     if not GP.IsEligibleGuild() or not C_ChatInfo or not C_ChatInfo.SendAddonMessage then return false end
+    local transport=target
     if target then
-        local online=C.Online(target)
+        local online,recipient=C.Online(target)
         if online~=true or C.blocked[identity(target)] then
             if (not C.refreshAt or clock()>=C.refreshAt) and C_GuildInfo and C_GuildInfo.GuildRoster then
                 C.refreshAt=clock()+15; pcall(C_GuildInfo.GuildRoster)
             end
             return false
         end
+        -- Sync keys omit spaces; only the roster spelling is a whisper address.
+        transport=recipient
     end
-    local transport=target
     if target then
-        local name,realm=target:match("^(.*)%-([^%-]+)$")
+        local name,realm=transport:match("^(.*)%-([^%-]+)$")
         for _,fn in ipairs({GetNormalizedRealmName or false,GetRealmName or false}) do
             if type(fn)=="function" then
                 local ok,own=pcall(fn)
@@ -187,13 +189,17 @@ end)
 frame:SetScript("OnUpdate", function(_, elapsed)
     if GP.db and GP.Network then GP.Network.Update(elapsed) end
     if GP.db and GP.Recovery then GP.Recovery.Update(elapsed) end
+    if GP.db and GP.UI.RefreshTracker then
+        GP.UI.trackerElapsed=(GP.UI.trackerElapsed or 0)+elapsed
+        if GP.UI.trackerElapsed>=1 then GP.UI.trackerElapsed=0; GP.UI.RefreshTracker() end
+    end
 end)
 
 SLASH_GONDORPVP1 = "/gpvp"
 SLASH_GONDORPVP2 = "/gondorpvp"
 SlashCmdList.GONDORPVP = function(message)
     local command = (message or ""):lower():match("^%s*(%S*)")
-    if command == "request" then GP.Network.Request(true)
+    if command == "request" then GP.UI.ShowRequestMenu()
     elseif command == "kos" then GP.UI.ShowKoS()
     elseif command == "status" then GP.Network.PrintStatus()
     elseif command == "retry" then GP.Network.RetryAnnouncement()

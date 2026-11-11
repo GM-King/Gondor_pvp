@@ -60,7 +60,8 @@ local function selfName()
     local name, realm
     if UnitFullName then name, realm = safe2(UnitFullName,"player")
     elseif UnitName then name, realm = safe2(UnitName,"player") end
-    if not clean(name) or type(name)~="string" then return "" end
+    if not clean(name) or type(name)~='string' or name=='' then name,realm=safe2(UnitName,'player') end
+    if not clean(name) or type(name)~='string' or name=='' then return '' end
     if not clean(realm) or type(realm)~="string" or realm=="" then
         realm=localRealm()
     end
@@ -72,6 +73,41 @@ local function same(a,b)
     if not x or not y then return false end
     if x:find("-",1,true) and y:find("-",1,true) then return x==y end
     return shortKey(a)==shortKey(b)
+end
+function N.IsOwnRequest(sender)
+    if not clean(sender) or type(sender)~='string' or sender=='' then return false end
+    if safe2(UnitIsUnit,sender,'player')==true then return true end
+    local realms={}
+    for _,fn in ipairs({GetNormalizedRealmName or false,GetRealmName or false}) do
+        local realm=safe2(fn); local normalized=fullKey(realm)
+        if normalized and normalized~='' then realms[normalized]=true end
+    end
+    local identities={}
+    for _,fn in ipairs({UnitFullName or false,UnitName or false}) do
+        local name,realm=safe2(fn,'player')
+        local normalized=fullKey(name)
+        if normalized and normalized~='' then
+            local r=fullKey(realm); if r and r~='' then realms[r]=true end
+            identities[#identities+1]=normalized
+            if r and r~='' then identities[#identities+1]=normalized..'-'..r end
+        end
+    end
+    local regional=safe2(RegionalUniqueNamesEnabled)==true
+    local function localIdentity(name)
+        name=fullKey(name)
+        if not name then return end
+        for realm in pairs(realms) do
+            local suffix='-'..realm
+            if name:sub(-#suffix)==suffix then name=name:sub(1,-#suffix-1); break end
+        end
+        if regional then name=name:gsub('-','') end
+        return name
+    end
+    local candidate=localIdentity(sender)
+    for _,name in ipairs(identities) do
+        if candidate==localIdentity(name) or (next(realms)==nil and same(sender,name)) then return true end
+    end
+    return false
 end
 local function split(s)
     local t = {}
@@ -394,7 +430,7 @@ function N.Initialize()
     local fare=GP.db.activeFare
     if type(fare)=="table" and validId(fare.id) and type(fare.requester)=="string" and fare.requester~=""
         and validPosition(fare.map,fare.x,fare.y) and validAmount(fare.amount) then
-        N.active = GP.db.activeFare; N.active.confirmedAt = nil; N.active.acceptedAt = nil
+        N.active = GP.db.activeFare; N.active.positionAt=nil; N.active.confirmedAt = nil; N.active.acceptedAt = nil
         if type(N.active.revision)~="number" or N.active.revision<1 or N.active.revision>1000000000
             or N.active.revision~=math.floor(N.active.revision) then N.active.revision=nil end
         if type(N.active.started)~="number" or N.active.started~=N.active.started or N.active.started<0 or N.active.started>4102444800 then N.active.started=now() end
@@ -445,7 +481,27 @@ function N.Initialize()
     end
     N.Prune(); N.CheckInstance()
 end
-function N.Request(manual, death)
+function N.Zone(map)
+    local visited={}
+    while map and not visited[map] do
+        visited[map]=true
+        local info=C_Map and safe2(C_Map.GetMapInfo,map)
+        if not clean(info) or type(info)~='table' then return end
+        if not clean(info.mapType) or not clean(info.parentMapID) or not clean(info.name) then return end
+        if type(info.name)~='string' or info.name=='' then return end
+        if info.mapType==3 or (info.mapType==nil and (not info.parentMapID or info.parentMapID==0)) then return map,info.name end
+        map=info.parentMapID
+    end
+end
+function N.OfferInZone(offer)
+    if offer.scope~='ZONE' then return true end
+    local map=GP.Map.Position()
+    local current=map and N.Zone(map)
+    return current~=nil and current==offer.zoneMap
+end
+function N.Request(manual, death, scope)
+    scope=scope or 'WORLD'
+    if scope~='WORLD' and scope~='ZONE' then return false end
     N.Prune()
     N.requestError=nil
     local function reject(message)
@@ -482,7 +538,27 @@ function N.Request(manual, death)
     local payload = {id,tostring(map),string.format("%.7f",x),string.format("%.7f",y),race,class,tostring(created),tostring(N.sequence)}
     local action = death and "was killed in PvP" or "needs PvP help"
     local announcement=string.format("[Gondor PvP] %s %s in %s (%.1f, %.1f).",GP.DisplayName(selfName()),action,zone(map),100*x,100*y)
-    local offersSent=send("R",payload)
+    local recipients={}
+    local zoneMap,zoneName=N.Zone(map)
+    payload[#payload+1]=scope; payload[#payload+1]=tostring(zoneMap or 0)
+    local offersSent=false
+    if scope=='WORLD' then offersSent=send('R',payload)
+    else
+        local count=safe2(GetNumGuildMembers,true)
+        if zoneName and clean(count) and type(count)=='number' and count>=0 and count<=2000 then
+            for i=1,count do
+                local ok,name,_,_,_,_,memberZone,_,_,online=pcall(GetGuildRosterInfo,i)
+                if ok and clean(name) and clean(memberZone) and clean(online) and type(name)=='string' and online==true and memberZone==zoneName and not N.IsOwnRequest(name) then
+                    if send('R',payload,name) then recipients[key(canonicalName(name))]=true; offersSent=true end
+                end
+            end
+        end
+        if not offersSent then
+            if C_GuildInfo and C_GuildInfo.GuildRoster then pcall(C_GuildInfo.GuildRoster) end
+            GP.Print('No verified online guildmates in this zone received an offer. Refreshing the guild roster; the channel announcement is still attempted.')
+        end
+    end
+    announcement=announcement..(scope=='ZONE' and ' Muster Rohirrim (Zone).' or ' Light Beacons (World).')
     if not offersSent then N.request=previous end
     N.lastDeliveryMessage=nil
     local status={offers=offersSent and "submitted" or "failed",announcement="pending"}
@@ -500,7 +576,7 @@ function N.Request(manual, death)
     for revision,snapshot in pairs(N.request.revisions) do
         if created-snapshot.created>65 then N.request.revisions[revision]=nil end
     end
-    N.request.revisions[tostring(N.sequence)]={map=map,x=x,y=y,created=created}
+    N.request.revisions[tostring(N.sequence)]={map=map,x=x,y=y,created=created,scope=scope,recipients=recipients,zoneMap=zoneMap}
     GP.db.outgoingRequest = N.request
     return true
 end
@@ -510,6 +586,12 @@ function N.Accept(id)
     if N.active then GP.Print("Cancel or complete your current fare first."); return false end
     local offer = N.offers[id]
     if not offer or now() >= offer.expires then GP.Print("That request has expired."); return false end
+    if not N.OfferInZone(offer) then GP.Print('You are no longer in the request zone.'); return false end
+    if N.IsOwnRequest(offer.sender) then
+        N.offers[id]=nil
+        GP.Print("You cannot accept your own fare request.")
+        return false
+    end
     if not rosterMember(offer.sender) then
         if C_GuildInfo and C_GuildInfo.GuildRoster then pcall(C_GuildInfo.GuildRoster) end
         GP.Print("The requester could not be verified in the guild roster. Please try again.")
@@ -560,6 +642,15 @@ function N.CancelFare(reason)
     queueCancellation(N.active.requester,N.active.id,N.active.revision,"H")
     N.active=nil; GP.db.activeFare=nil; GP.Map.Clear(); GP.Print(reason or "Fare cancelled."); showDeferredOffers()
 end
+function N.CancelHelper(requestId,helperKey,revision)
+    local request=N.request
+    local helper=request and request.helpers[helperKey]
+    if not request or request.id~=requestId or not helper or helper.revision~=revision or helper.completedAt then return false end
+    request.cancelled=request.cancelled or {}; request.cancelled[helperKey]=revision or 0
+    queueCancellation(helper.name,requestId,revision,'R')
+    request.helpers[helperKey]=nil
+    return true
+end
 function N.CancelRequest(reason)
     N.ClearAnnouncements()
     if not N.request then GP.Print("No open request."); return end
@@ -579,7 +670,7 @@ function N.CheckInstance()
         N.deathPosition=nil; N.lastAlive=nil
         N.ClearAnnouncements()
         if GP.UI.ClearOffers then GP.UI.ClearOffers() end
-        if StaticPopup_Hide then pcall(StaticPopup_Hide,"GONDOR_PVP_DEATH") end
+        if GP.UI.HideDeathPrompt then GP.UI.HideDeathPrompt() end
         if N.active then N.CancelFare() end
         if N.request then N.CancelRequest() end
         GP.Map.Clear()
@@ -647,12 +738,12 @@ local function promptDeath(serial)
     if GP.UI.ConfirmDeath then GP.UI.ConfirmDeath(serial) end
 end
 
-function N.RespondToDeathPrompt(serial, accepted)
+function N.RespondToDeathPrompt(serial, accepted, scope)
     if not serial or serial~=N.deathSerial or serial~=N.pendingDeathSerial then return false end
     N.pendingDeathSerial=nil
     if not accepted or not GP.db.settings.alerts or N.InInstance() or not GP.IsEligibleGuild() then return false end
     N.confirmedDeathSerial=serial
-    local sent=N.Request(false,true)
+    local sent=N.Request(false,true,scope)
     N.confirmedDeathSerial=nil
     return sent
 end
@@ -677,7 +768,8 @@ end
 
 local function onMessage(message,sender,distribution)
     local resolved=rosterMember(sender)
-    if not resolved or same(resolved,selfName()) then return end
+    if N.IsOwnRequest(sender) then return end
+    if not resolved or N.IsOwnRequest(resolved) then return end
     sender=resolved
     N.Prune()
     local p=split(message)
@@ -685,7 +777,7 @@ local function onMessage(message,sender,distribution)
     if N.InInstance() and kind~="X" and kind~="Z" and kind~="K" then return end
     if not id or #id>40 or not id:match("^%d+%-%d+$") then return end
     if now()>=N.Deadline(id) and kind~="X" and kind~="Z" and kind~="K" and kind~="D" then return end
-    if kind == "R" and distribution == "GUILD" and GP.db.settings.offers then
+    if kind == "R" and (distribution == "GUILD" or distribution == "WHISPER") and GP.db.settings.offers then
         if GP.Comms.Online(sender)==false then return end
         local alreadyActive=N.active and N.active.id==id and same(sender,N.active.requester)
         local map,x,y=position(p,3)
@@ -693,10 +785,11 @@ local function onMessage(message,sender,distribution)
         if not map or not stamp or now()-stamp>60 or stamp-now()>5 then return end
         local revision,revisionValid=parseRevision(p[9])
         if not revisionValid then return end
-        local own=GP.Map.Position()
-        local party=safe2(UnitInParty,sender)
-        local raid=safe2(UnitInRaid,sender)
-        if own == map and ((clean(party) and party) or (clean(raid) and raid)) then return end
+        local scope=p[10] or 'WORLD'
+        local zoneMap=number(p[11] or '0',0,100000)
+        if scope~='WORLD' and scope~='ZONE' then return end
+        if scope=='WORLD' and distribution~='GUILD' then return end
+        if scope=='ZONE' and (distribution~='WHISPER' or not zoneMap or not N.OfferInZone({scope=scope,zoneMap=zoneMap})) then return end
         local expiry=stamp+math.max(5,math.min(60,tonumber(GP.db.settings.expiry) or GP.defaults.expiry))
         if now()>=expiry then return end
         local om,ox,oy=GP.Map.Position()
@@ -712,7 +805,7 @@ local function onMessage(message,sender,distribution)
             if (not revision or not seen.revision) and (message==seen.message or stamp<seen.stamp) then return end
         end
         N.seenRequests[token]={revision=revision,stamp=stamp,message=message,at=now()}
-        N.offers[token]={id=id,sender=sender,map=map,x=x,y=y,race=p[6],class=p[7],quote=quote,expires=expiry,revision=revision}
+        N.offers[token]={id=id,sender=sender,map=map,x=x,y=y,race=p[6],class=p[7],quote=quote,expires=expiry,revision=revision,scope=scope,zoneMap=zoneMap}
         if alreadyActive then N.offers[token].deferred=true; return end
         if GP.UI.ShowOffer then GP.UI.ShowOffer(token,N.offers[token],zone(map)) end
     elseif kind == "A" and distribution == "WHISPER" and N.request and N.request.id==id then
@@ -733,6 +826,7 @@ local function onMessage(message,sender,distribution)
             if revision then
                 snapshot=N.request.revisions and N.request.revisions[tostring(revision)]
             end
+            if snapshot and snapshot.scope=='ZONE' and not (snapshot.recipients or {})[key(sender)] then return end
             if not snapshot or now()-(snapshot.created or 0)>65 then return end
             local quote=GP.Map.Quote(map,x,y,snapshot.map,snapshot.x,snapshot.y)
             if not quote or (proposed ~= quote and proposed ~= 0) then return end
@@ -746,7 +840,7 @@ local function onMessage(message,sender,distribution)
         if not map or not revisionValid or (role and role~="" and role~="H" and role~="R") then return end
         if role~="H" and N.active and N.active.id==id and same(sender,N.active.requester) then
             if revision~=N.active.revision then return end
-            N.active.acceptedAt=now()
+            N.active.acceptedAt=now(); N.active.positionAt=now()
             N.active.map,N.active.x,N.active.y=map,x,y; GP.Map.Set(map,x,y)
             if isAlive and alive() and within(map,x,y,sender) and visible(sender) then
                 if send("C",revisionFields({id},revision),sender) then N.active.confirmedAt=now() end
@@ -883,6 +977,7 @@ function N.OnEvent(event,...)
     if event=="CHAT_MSG_ADDON" then
         local pre,msg,distribution,sender=...
         if clean(pre) and clean(msg) and clean(distribution) and clean(sender) and pre==prefix then
+            if N.IsOwnRequest(sender) then return end
             if not rosterMember(sender) and not rosterMember(selfName()) and type(msg)=="string" and #msg<=240
                 and msg:match("^[RAX]~") and type(sender)=="string" and #sender<=100 then
                 if #N.buffered>=50 then table.remove(N.buffered,1) end
@@ -928,7 +1023,7 @@ function N.OnEvent(event,...)
             N.deathSerial=(N.deathSerial or 0)+1
             N.pendingDeathSerial=nil; N.confirmedDeathSerial=nil
             N.ClearAnnouncements()
-            if StaticPopup_Hide then pcall(StaticPopup_Hide,"GONDOR_PVP_DEATH") end
+            if GP.UI.HideDeathPrompt then GP.UI.HideDeathPrompt() end
             if GP.db.settings.alerts then
                 local serial=N.deathSerial
                 local deathAt=now()

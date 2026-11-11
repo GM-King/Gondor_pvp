@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&amp;family=Barlow:wght@400;500;600;700&amp;display=swap">
-<link rel="stylesheet" href="style.css?v=4">
-<script src="script.js?v=4" defer>
+<link rel="stylesheet" href="style.css?v=5">
+<script src="script.js?v=5" defer>
 </script>
 </head>
 <body>
@@ -24,6 +24,7 @@
 </a>
 <nav aria-label="Main navigation">
 <a href="#guide">Field guide</a>
+<a href="#choices">Choices</a>
 <a href="#kos">Kill on Sight</a>
 <a href="#install">Install</a>
 <a href="https://github.com/GM-King/Gondor_pvp">GitHub ↗</a>
@@ -40,11 +41,11 @@
 </p>
 <p class="lead">Collect cards from honorable kills. Rally your guildmates. Earn points for showing up when the fight finds them.</p>
 <div class="actions">
-<a class="button" href="https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.11-beta/Gondor_PvP.zip">Download beta <span aria-hidden="true">↓</span>
+<a class="button" href="https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.12-beta/Gondor_PvP.zip">Download beta <span aria-hidden="true">↓</span>
 </a>
 <a href="#guide">How to play ↘</a>
 </div>
-<p class="meta">WoW Forever · 0.9.11 beta · 78.1 MiB</p>
+<p class="meta">WoW Forever · 0.9.12 beta · 78.1 MiB</p>
 </div>
 <div class="sergeant-stage">
 <div class="speech" aria-hidden="true">
@@ -86,7 +87,7 @@
 </li>
 <li>
 <strong>Open your binder</strong>
-<p>Type <code>/gpvp</code> or left-click the murloc minimap button. Right-click the button to open Settings.</p>
+<p>Type <code>/gpvp</code> or right-click the circular orc minimap button to open the binder. Left-click it to choose how to call for help. Settings are inside the binder.</p>
 </li>
 </ol>
 </section>
@@ -110,7 +111,7 @@
 <a href="assets/binder.png" data-preview>
 <img src="assets/binder.png" width="780" height="680" loading="lazy" alt="Zero-kill binder with eight locked question-mark slots and Kill Share, Points, and Settings buttons">
 </a>
-<figcaption>Offline addon preview <span>Card binder · Click to enlarge ↗</span>
+<figcaption>Offline layout illustration <span>Card binder · Click to enlarge ↗</span>
 </figcaption>
 </figure>
 </article>
@@ -118,15 +119,15 @@
 <div>
 <span class="step">02 / CALL FOR BACKUP</span>
 <h3>Bad odds?<br>Make some noise.</h3>
-<p>In the binder, choose <strong>Kill Share → Request help</strong>, or type <code>/gpvp request</code>. Your responding guildmates appear in the Kill Share panel.</p>
-<p>With death alerts enabled, a PvP death asks whether to request help. Only choosing <strong>Request help</strong> sends the call; declining, Escape or timeout sends nothing.</p>
+<p>In the binder, choose <strong>Kill Share → Request help</strong>, or type <code>/gpvp request</code>. Choose Zone or World in the compact upper-middle menu. Accepted fares appear in the movable bottom-right tracker, even with the binder closed.</p>
+<p>With death alerts enabled, a PvP death asks whether to request help. Choose <strong>Muster Rohirrim (Zone)</strong> or <strong>Light Beacons (World)</strong> to send the call; declining, Escape or timeout sends nothing.</p>
 <aside class="note">Change of plans? <strong>Withdraw request</strong> ends your own call. <strong>Cancel my fare</strong> ends the help job you accepted.</aside>
 </div>
 <figure>
 <a class="small-preview" href="assets/kill-share.png" data-preview>
-<img src="assets/kill-share.png" width="430" height="400" loading="lazy" alt="Kill Share panel showing an active fare, two responding guildmates, and Request help and cancellation buttons">
+<img src="assets/kill-share.png" width="430" height="550" loading="lazy" alt="Kill Share panel showing an active fare, two responding guildmates, and Request help and cancellation buttons">
 </a>
-<figcaption>Offline addon preview <span>Kill Share · Click to enlarge ↗</span>
+<figcaption>Offline layout illustration <span>Kill Share · Click to enlarge ↗</span>
 </figcaption>
 </figure>
 </article>
@@ -134,15 +135,15 @@
 <div>
 <span class="step">03 / ANSWER THE CALL</span>
 <h3>See the offer.<br>Be the backup.</h3>
-<p>Enable <strong>Incoming Kill Share offers</strong> in Settings. Each popup shows who needs help, their location, and the potential points.</p>
+<p>Enable <strong>Incoming Kill Share offers</strong> in Settings. Each popup shows who needs help, their requested location, approximate straight-line distance in yards, and potential points. Your own requests are excluded. If the locations cannot be compared, it shows Distance unavailable.</p>
 <p>Select <strong>Accept</strong> and follow the requester’s map pin. You can help one accepted fare at a time.</p>
 <aside class="note">Offer too quick? In Settings, adjust its expiry from <strong>5 to 60 seconds</strong>. The default is 60 seconds.</aside>
 </div>
 <figure>
 <a class="offer-preview" href="assets/offer.png" data-preview>
-<img src="assets/offer.png" width="370" height="190" loading="lazy" alt="PvP help request for Thrall in Durotar, quoting 15 points, with Accept and Dismiss buttons">
+<img src="assets/offer.png" width="370" height="305" loading="lazy" alt="PvP help request for Thrall in Durotar, showing yardage and quoting 15 points, with Accept and Dismiss buttons">
 </a>
-<figcaption>Offline addon preview <span>Incoming offer · Click to enlarge ↗</span>
+<figcaption>Offline layout illustration <span>Incoming offer · Click to enlarge ↗</span>
 </figcaption>
 </figure>
 </article>
@@ -156,6 +157,20 @@
 <span class="finish-mark" aria-hidden="true">↗</span>
 </article>
 </section>
+<section class="guide wrap" id="choices" aria-labelledby="choices-title">
+<div class="section-heading"><div><p class="eyebrow">CHOOSE YOUR REINFORCEMENTS</p><h2 id="choices-title">A muster. Or a beacon.</h2></div><p>Two ways to call.<br>One guild at your back.</p></div>
+<article class="guide-row"><div><span class="step">ZONE / WORLD</span><h3>Pick the reach<br>of your call.</h3>
+<p>Left-click the <strong>orc minimap button</strong>, choose <strong>Kill Share → Request help</strong>, or type <code>/gpvp request</code>. The choice menu opens in the upper-middle; its <strong>X</strong> or Escape closes it without sending anything.</p>
+<p><strong>Muster Rohirrim (Zone)</strong> sends private addon offers only to online guildmates in your zone, including its subzones. You are excluded, and recipients must still be in that zone to see or accept the offer. If their zone cannot be verified, the addon never widens your call to World.</p>
+<p><strong>Light Beacons (World)</strong> sends offers throughout the guild, except to yourself. Party and raid members are included. Both options respect saved incoming-offer opt-outs and post an announcement in your configured channel, normally <code>gcfrpvp</code>.</p>
+<aside class="note">After a confirmed or uncertain PvP death, the same choices appear with <strong>Decline</strong>. Closing, declining or waiting 15 seconds sends nothing. An accepted choice uses the location captured at death. Updated addons are required for Zone offers; existing cooldowns and instance restrictions still apply.</aside></div>
+<figure><a class="small-preview" href="assets/choices.png" data-preview><img src="assets/choices.png" width="300" height="160" loading="lazy" alt="Compact death request choice menu with Muster Rohirrim Zone, Light Beacons World, Decline and a close X"></a><figcaption>Offline layout illustration <span>Death request choices · Click to enlarge ↗</span></figcaption></figure></article>
+<article class="guide-row reverse"><div><span class="step">KEEP YOUR BACKUP IN SIGHT</span><h3>Know who’s coming.<br>Close the distance.</h3>
+<p>The minimal <strong>active fare tracker</strong> stays bottom-right while fares are active, including during combat. See who requested help, who accepted, and approximate yards between you. It supports helping someone while other guildmates answer your own request.</p>
+<p><strong>Drag its header</strong> to move it; your position is saved per character. Scroll when more than five fares are active. Each row’s <strong>X cancels only that fare</strong>, preserving your other helpers and open request. To withdraw the whole request, use <strong>Withdraw request</strong> in Kill Share.</p>
+<p>Distance updates with received locations. Old locations show <strong>Updating location…</strong>; incompatible locations show <strong>Distance unavailable</strong>. Completion acknowledgement stays visible until the handshake finishes. These readouts do not change reward quotes or the precise meeting checks.</p></div>
+<figure><a class="small-preview" href="assets/tracker.png" data-preview><img src="assets/tracker.png" width="300" height="168" loading="lazy" alt="Movable active fare tracker showing a requester and two accepted helpers, yardage and individual cancellation X buttons"></a><figcaption>Offline layout illustration <span>Persistent fare tracker · Click to enlarge ↗</span></figcaption></figure></article>
+</section>
 <section class="guide wrap" id="kos" aria-labelledby="kos-title">
 <div class="section-heading">
 <div><p class="eyebrow">BY ORDER OF THE DOCTOR OF WAR</p><h2 id="kos-title">Kill on Sight.</h2></div>
@@ -167,27 +182,25 @@
 <h3>Remember the name.<br>Recognise the threat.</h3>
 <p>Open <strong>Kill on Sight</strong> in the binder or type <code>/gpvp kos</code>. All Gondor Calls for Raid members with the updated addon share a list of up to <strong>100 Alliance targets</strong>. Changes sync between online guildmates, with catch-up when they return.</p>
 <p><strong>Right-click an Alliance character portrait → Gondor KoS</strong> to add them. Give a reason of up to <strong>100 characters</strong>; the original reason stays read-only. A crosshair marks listed target and focus portraits, including Z-Perl frames.</p>
-<p>Click a name to see the <strong>reason, who added them, race, class and last-seen level</strong>. The list shows time since the latest guild sighting. Older entries show unknown attributes until someone sees the target again.</p>
+<p>Click a name to see the <strong>reason, who added them, race, class, last-seen level and a kill breakdown by guild member</strong>. Sort the list by <strong>Level, Last seen or Total kills</strong>; click again to reverse the order. Kill totals cover the current listing: a fresh addition resets the total, while Undo preserves it. Earned points remain intact. Older entries show unknown attributes until someone sees the target again.</p>
 <p>Spot an identifiable, living target nearby in the open world and hear a <strong>local warning sound</strong>. Sightings are announced in <code>gcfrpvp</code>, limited to once per target every <strong>ten minutes</strong>. Each encountering member has their own sound warning and can turn it off in the KoS window.</p>
 <p>A verified killing blow by you or your pet earns <strong>5 PvP points</strong> and announces the kill in <code>gcfrpvp</code>. Each distinct later kill can earn another five. Alerts and rewards operate in the open world; if Forever hides the required kill evidence, no points are awarded.</p>
 <p><strong>Delete</strong> asks for confirmation and announces who removed the target in <code>gcfrpvp</code>. The deleting player has <strong>60 seconds to Undo</strong>, including across a reload. Restoring an entry preserves its original reason, contributor, details and sighting time, and announces the restoration. Undo needs a free list slot.</p>
 <aside class="note">Targets unseen by the guild for <strong>ten days</strong> are automatically removed. Automatic expiry is quiet and preserves earned points. Manual deletions can be undone using the popup or <strong>Undo deletes</strong>.</aside>
 </div>
-<figure class="kos-art">
-<img src="assets/kos-orc.png" width="470" height="836" loading="lazy" alt="Orc gunslinger aiming a pistol, the artwork used in the Kill on Sight window">
-<figcaption>By order of the Doctor of War <span>Gondor Kill on Sight</span></figcaption>
+<figure><a href="assets/kos.png" data-preview><img src="assets/kos.png" width="840" height="570" loading="lazy" alt="Updated Kill on Sight list with separate sort buttons for level, last seen and total kills, and the orc artwork"></a><figcaption>Offline layout illustration <span>Shared KoS list · Click to enlarge ↗</span></figcaption>
 </figure>
 </article>
 </section>
 <section class="beta wrap">
 <div>
-<p class="eyebrow">BETA 0.9.11</p>
+<p class="eyebrow">BETA 0.9.12</p>
 <h2>Still sharpening the axe.</h2>
 </div>
 <div>
 <p>Offline checks pass. Live-client gameplay verification is pending. Death detection, channel delivery, map pins, precise positioning and KoS killing-blow verification depend on the APIs available in Forever. Test these with guildmates before relying on rewards.</p>
 <div class="links">
-<a href="https://github.com/GM-King/Gondor_pvp/releases/tag/v0.9.11-beta">Release notes ↗</a>
+<a href="https://github.com/GM-King/Gondor_pvp/releases/tag/v0.9.12-beta">Release notes ↗</a>
 <a href="https://github.com/GM-King/Gondor_pvp/issues">Report an issue ↗</a>
 </div>
 </div>
@@ -212,7 +225,7 @@
 <dialog id="image-dialog" aria-label="Enlarged offline addon preview">
 <button id="close-preview" autofocus>Close preview ×</button>
 <img id="large-preview" alt="">
-<p>Offline addon preview</p>
+<p>Offline layout illustration</p>
 </dialog>
 </body>
 </html>

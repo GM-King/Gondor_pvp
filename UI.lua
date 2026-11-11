@@ -254,7 +254,13 @@ function UI.BuildMinimap()
     local b=CreateFrame("Button","GondorPvPMinimapButton",UIParent)
     UI.minimap=b; b:SetSize(32,32); b:SetFrameStrata("MEDIUM")
     local icon=b:CreateTexture(nil,"ARTWORK"); icon:SetSize(22,22); icon:SetPoint("CENTER")
-    icon:SetTexture("Interface\\AddOns\\Gondor_PvP\\Media\\Murloc")
+    local bg=b:CreateTexture(nil,"BACKGROUND"); bg:SetSize(22,22); bg:SetPoint("CENTER"); bg:SetTexture("Interface\\Buttons\\WHITE8X8"); if bg.SetVertexColor then bg:SetVertexColor(140/255,17/255,24/255,1) end
+    icon:SetTexture("Interface\\AddOns\\Gondor_PvP\\Media\\KoSOrc"); icon:SetTexCoord(0,941/1024,0,941/2048)
+    if b.CreateMaskTexture and icon.AddMaskTexture and bg.AddMaskTexture then
+        local mask=b:CreateMaskTexture(nil,'OVERLAY'); mask:SetSize(22,22); mask:SetPoint('CENTER')
+        mask:SetTexture('Interface\\CharacterFrame\\TempPortraitAlphaMask','CLAMPTOBLACKADDITIVE','CLAMPTOBLACKADDITIVE')
+        icon:AddMaskTexture(mask); bg:AddMaskTexture(mask)
+    end
     local border=b:CreateTexture(nil,"OVERLAY"); border:SetSize(54,54); border:SetPoint("TOPLEFT",0,0)
     border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
     b:RegisterForClicks("LeftButtonUp","RightButtonUp"); b:RegisterForDrag("LeftButton")
@@ -270,7 +276,7 @@ function UI.BuildMinimap()
     end
     b:SetScript("OnClick",function(_,mouse)
         if b.skipClick then b.skipClick=false; return end
-        if mouse=="RightButton" then UI.ToggleSettings() else UI.Toggle() end
+        if mouse=="RightButton" then UI.Toggle() else UI.ShowRequestMenu() end
     end)
     b:SetScript("OnDragStart",function() b.dragging=true end)
     b:SetScript("OnDragStop",function() b.dragging=false; b.skipClick=true; place() end)
@@ -284,7 +290,7 @@ function UI.BuildMinimap()
         end
     end)
     b:SetScript("OnEnter",function(self)
-        if GameTooltip then GameTooltip:SetOwner(self,"ANCHOR_LEFT"); GameTooltip:AddLine("Gondor PvP"); GameTooltip:AddLine("Left click: binder  |  Right click: settings"); GameTooltip:Show() end
+        if GameTooltip then GameTooltip:SetOwner(self,"ANCHOR_LEFT"); GameTooltip:AddLine("Gondor PvP"); GameTooltip:AddLine("Left click: request help  |  Right click: binder"); GameTooltip:Show() end
     end)
     b:SetScript("OnLeave",function() if GameTooltip then GameTooltip:Hide() end end)
     place()
@@ -352,7 +358,7 @@ function UI.ShowKillShare()
         local picture=art(f,90,90); picture:SetPoint("TOPRIGHT",-15,-8); picture:SetTexture("Interface\\AddOns\\Gondor_PvP\\Media\\Peon")
         f.detail=label(f,12,25,110,380,330); f.detail:SetJustifyH("LEFT"); f.detail:SetJustifyV("TOP")
         button(f,"Retry announcement",180,125,12,function() GP.Network.RetryAnnouncement(); refreshKillShare() end)
-        button(f,"Request help",150,45,80,function() GP.Network.Request(true); refreshKillShare() end)
+        button(f,"Request help",150,45,80,function() UI.ShowRequestMenu() end)
         button(f,"Cancel my fare",150,235,80,function() GP.Network.CancelFare(); refreshKillShare() end)
         button(f,"Withdraw request",150,45,45,function() GP.Network.CancelRequest(); refreshKillShare() end)
         button(f,"Close",150,235,45,function() f:Hide() end)
@@ -443,7 +449,7 @@ function UI.ToggleSettings()
 end
 
 function UI.QueueOffer(token,offer,zone,first)
-    if not offer then return end
+    if not offer or GP.Network.IsOwnRequest(offer.sender) then return end
     for _,queued in ipairs(UI.offerQueue) do
         if queued.token==token then queued.offer=offer; queued.zone=zone; return end
     end
@@ -456,28 +462,32 @@ function UI.ShowNextOffer()
     while #UI.offerQueue>0 do
         local entry=table.remove(UI.offerQueue,1)
         local offer=GP.Network.offers[entry.token]
-        if offer and offer.expires>now() and not offer.deferred then
+        if offer and offer.expires>now() and not offer.deferred and not GP.Network.IsOwnRequest(offer.sender) and GP.Network.OfferInZone(offer) then
             UI.ShowOffer(entry.token,offer,entry.zone); return
         end
     end
 end
 
 function UI.ShowOffer(token, offer, zone)
+    if GP.Network.IsOwnRequest(offer.sender) or not GP.Network.OfferInZone(offer) then return end
     if offer.expires<=now() then return end
     if UI.InCombat() then UI.QueueOffer(token,offer,zone); return end
     if not UI.offer then
         local f=CreateFrame("Frame","GondorPvPOffer",UIParent,"BackdropTemplate")
-        UI.offer=f; f:SetSize(370,280); f:SetPoint("BOTTOMRIGHT",UIParent,"BOTTOMRIGHT",-40,180); f:SetClampedToScreen(true); f:SetFrameStrata("DIALOG")
+        UI.offer=f; f:SetSize(370,305); f:SetPoint("BOTTOMRIGHT",UIParent,"BOTTOMRIGHT",-40,180); f:SetClampedToScreen(true); f:SetFrameStrata("DIALOG")
         f:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8",edgeFile="Interface\\Buttons\\WHITE8X8",edgeSize=2})
         f:SetBackdropColor(0.10,0.04,0.03,1); f:SetBackdropBorderColor(0.7,0.45,0.2,1)
         f.title=label(f,17,10,12,350,26)
         local picture=art(f,160,80); picture:SetPoint("TOP",0,-42); picture:SetTexture("Interface\\AddOns\\Gondor_PvP\\Media\\Chopper")
-        f.detail=label(f,12,20,133,330,70)
+        f.detail=label(f,12,20,133,330,100)
         button(f,"Accept",115,55,20,function()
             local selected=f.token; if selected and GP.Network.Accept(selected) then f:Hide() end
         end)
         button(f,"Dismiss",115,200,20,function() GP.Network.offers[f.token]=nil; f:Hide() end)
-        f:SetScript("OnUpdate",function(self)
+        f:SetScript("OnUpdate",function(self,elapsed)
+            self.distanceElapsed=(self.distanceElapsed or 0)+(elapsed or 0)
+            if self.distanceElapsed>=1 then self.distanceElapsed=0; UI.RefreshOfferDistance() end
+            if GP.Network.IsOwnRequest(self.currentOffer.sender) or not GP.Network.OfferInZone(self.currentOffer) then GP.Network.offers[self.token]=nil; self:Hide(); return end
             if UI.InCombat() then
                 UI.QueueOffer(self.token,self.currentOffer,self.zone,true); self:Hide()
             elseif self.expires and now()>=self.expires then self:Hide() end
@@ -494,7 +504,7 @@ function UI.ShowOffer(token, offer, zone)
     f.detail:SetText(string.format("%s — %s %s\n%s (%.1f, %.1f)\nPotential reward: %s PvP Points",
         GP.DisplayName(offer.sender),offer.race or "Unknown",offer.class or "Unknown",zone,offer.x*100,offer.y*100,
         offer.quote and tostring(offer.quote) or "unavailable"))
-    window(f); f:Show()
+    UI.RefreshOfferDistance(); window(f); f:Show()
 end
 
 function UI.RemoveOffer(token)
@@ -509,25 +519,49 @@ function UI.ClearOffers()
     if UI.offer and UI.offer:IsShown() then UI.offer:Hide() end
 end
 
-function UI.ConfirmDeath(serial)
-    if not StaticPopupDialogs or not StaticPopup_Show then
-        GP.Print("Death detected. If this was PvP, use /gpvp request.")
-        return
-    end
-    if not StaticPopupDialogs.GONDOR_PVP_DEATH then
-        StaticPopupDialogs.GONDOR_PVP_DEATH={
-            text="Were you killed in PvP? Send a Gondor PvP help alert?",
-            button1="Request help", button2="Decline", timeout=15, whileDead=true, hideOnEscape=true,
-            OnAccept=function(_,data)
-                GP.Network.RespondToDeathPrompt(data,true)
-            end,
-            OnCancel=function(_,data)
-                GP.Network.RespondToDeathPrompt(data,false)
-            end,
-        }
-    end
-    StaticPopup_Show("GONDOR_PVP_DEATH",nil,nil,serial)
+function UI.HideDeathPrompt()
+    if UI.requestMenu and UI.requestMenu.serial then UI.requestMenu:Hide() end
 end
+function UI.ShowRequestMenu(serial)
+    if not UI.requestMenu then
+        local f=CreateFrame('Frame','GondorPvPRequestMenu',UIParent,'BackdropTemplate')
+        UI.requestMenu=f; f.choices={}; f:SetSize(300,160)
+        f:SetBackdrop({bgFile='Interface\\Buttons\\WHITE8X8',edgeFile='Interface\\Buttons\\WHITE8X8',edgeSize=2})
+        f:SetBackdropColor(.12,.03,.03,1); f:SetBackdropBorderColor(.7,.45,.2,1)
+        f.title=label(f,14,10,8,245,25)
+        f.close=button(f,'X',24,267,128,function() f:Hide() end)
+        for i,choice in ipairs({{'Muster Rohirrim (Zone)','ZONE'},{'Light Beacons (World)','WORLD'}}) do
+            local scope=choice[2]
+            local choiceButton=button(f,choice[1],270,15,75-(i-1)*33,function()
+                local death=f.serial; f.serial=nil; f:Hide()
+                if death then GP.Network.RespondToDeathPrompt(death,true,scope) else GP.Network.Request(true,false,scope) end
+            end)
+            choiceButton.gondorScopeIndex=i; f.choices[i]=choiceButton
+        end
+        f.decline=button(f,'Decline',120,90,9,function() f:Hide() end)
+        f:SetScript('OnHide',function()
+            local death=f.serial; f.serial=nil
+            if death then GP.Network.RespondToDeathPrompt(death,false) end
+        end)
+        f:SetScript('OnUpdate',function()
+            if f.serial and (now()>=f.deadline or f.serial~=GP.Network.pendingDeathSerial or not GP.db.settings.alerts or not GP.IsEligibleGuild() or GP.Network.InInstance()) then f:Hide() end
+        end)
+        if UISpecialFrames then table.insert(UISpecialFrames,'GondorPvPRequestMenu') end
+        f:Hide()
+    end
+    local f=UI.requestMenu
+    if f:IsShown() then f:Hide(); if not serial then return end end
+    f.serial=serial; f.deadline=now()+15; f.decline:SetShown(serial~=nil)
+    f:SetHeight(serial and 160 or 124)
+    f.close:ClearAllPoints(); f.close:SetPoint('TOPRIGHT',f,'TOPRIGHT',-8,-7)
+    for _,child in ipairs(f.choices) do
+        if child.gondorScopeIndex then child:ClearAllPoints(); child:SetPoint('TOPLEFT',f,'TOPLEFT',15,-(43+(child.gondorScopeIndex-1)*33)) end
+    end
+    f.title:SetText(serial and 'Killed in PvP? Call for aid' or 'Gondor calls for aid')
+    f:ClearAllPoints(); f:SetPoint('CENTER',UIParent,'TOP',0,-UIParent:GetHeight()*.28)
+    window(f); f:Show()
+end
+function UI.ConfirmDeath(serial) UI.ShowRequestMenu(serial) end
 
 function UI.Toggle()
     UI.Build()
@@ -623,20 +657,29 @@ function UI.RefreshKoSDetails()
     f.player:SetText(UI.KoSPlayerName(r.key))
     f.reason:SetText(r.reason~='' and r.reason or 'No reason provided.')
     f.author:SetText('Added by '..UI.KoSPlayerName(r.author))
+    local total,players=GP.KoS.Stats(r)
+    f.killTotal:SetText('Total kills: '..total)
+    f.killOffset=math.max(0,math.min(f.killOffset or 0,math.max(0,#players-5)))
+    local lines={}; for i=1,5 do local entry=players[i+f.killOffset]; if entry then lines[#lines+1]=UI.KoSPlayerName(entry.name)..' — '..entry.count end end
+    f.killPlayers:SetText(#players>0 and table.concat(lines,'\n') or 'No recorded kills.')
     f.attributes:SetText('Race: '..(r.race and r.race~='' and r.race or 'Unknown')..'  |  Class: '..(r.class and r.class~='' and r.class or 'Unknown')..'\nLast seen level: '..(r.level and r.level>0 and tostring(r.level) or 'Unknown'))
 end
 function UI.ShowKoSDetails(r)
     if not GP.IsEligibleGuild() or not GP.KoS.Active(r) then return end
     if not UI.kosDetails then
-        local f=kosWindow('GondorPvPKoSDetails',500,320,'KILL ON SIGHT — TARGET DETAILS'); UI.kosDetails=f
+        local f=kosWindow('GondorPvPKoSDetails',500,480,'KILL ON SIGHT — TARGET DETAILS'); UI.kosDetails=f
         f.player=label(f,18,25,55,450,30); f.player:SetTextColor(1,.82,.38)
         f.attributes=label(f,12,25,90,450,42); f.attributes:SetJustifyH('LEFT'); f.attributes:SetTextColor(.85,.8,.7)
         local caption=label(f,11,25,143,450,20); caption:SetJustifyH('LEFT'); caption:SetText('REASON'); caption:SetTextColor(.75,.65,.55)
         f.reason=label(f,13,25,169,450,65); f.reason:SetJustifyH('LEFT'); f.reason:SetJustifyV('TOP'); f.reason:SetTextColor(.95,.9,.82)
         f.author=label(f,12,25,247,450,25); f.author:SetJustifyH('LEFT'); f.author:SetTextColor(.75,.65,.55)
+        f.killTotal=label(f,14,25,280,450,25)
+        f.killPlayers=label(f,12,25,310,450,115); f.killPlayers:SetJustifyV('TOP')
+        f:SetScript('OnUpdate',function(_,elapsed) f.elapsed=(f.elapsed or 0)+elapsed; if f.elapsed>=1 then f.elapsed=0; UI.RefreshKoSDetails() end end)
+        f:EnableMouseWheel(true); f:SetScript('OnMouseWheel',function(_,delta) f.killOffset=(f.killOffset or 0)-delta; UI.RefreshKoSDetails() end)
         button(f,'Close',110,195,15,function() f:Hide() end)
     end
-    local f=UI.kosDetails; f.key=r.key; f.gen=r.gen; f:Show(); window(f); UI.RefreshKoSDetails()
+    local f=UI.kosDetails; if f.key~=r.key then f.killOffset=0 end; f.key=r.key; f.gen=r.gen; f:Show(); window(f); UI.RefreshKoSDetails()
 end
 function UI.RefreshKoS()
     local f=UI.kosFrame; if not f or not GP.KoS.rows then return end
@@ -647,7 +690,7 @@ function UI.RefreshKoS()
         local r=list[i+f.offset]; row.record=r
         if r then
             local age=math.max(0,K.Now()-r.seen); local ago=age<60 and 'just now' or age<3600 and math.floor(age/60)..'m ago' or age<86400 and math.floor(age/3600)..'h ago' or math.floor(age/86400)..'d ago'
-            row.name:SetText(UI.KoSPlayerName(r.key)); row.seen:SetText('Last seen '..ago); row:Show()
+            row.name:SetText(UI.KoSPlayerName(r.key)); row.seen:SetText('Level '..((r.level or 0)>0 and r.level or '?')..'   |   Last seen '..ago..'   |   Total kills: '..K.Stats(r)); row:Show()
         else row:Hide() end
     end
     f.mute:SetText(GP.db.settings.kosSound and 'Sound: on' or 'Sound: off')
@@ -659,12 +702,19 @@ function UI.ShowKoS()
     if not UI.kosFrame then
         local f=kosWindow('GondorPvPKoSFrame',840,570,'GONDOR — KILL ON SIGHT'); UI.kosFrame=f; f.rows={}
         local picture=art(f,220,391); picture:SetPoint('TOPLEFT',12,-90); picture:SetTexture(kosMedia..'KoSOrc'); picture:SetTexCoord(0,941/1024,0,1672/2048)
-        f.status=label(f,12,20,48,800,40)
+        f.status=label(f,12,20,48,800,28)
+        for i,spec in ipairs({{'Level','level'},{'Last seen','seen'},{'Total kills','kills'}}) do
+            local field=spec[2]
+            button(f,spec[1],110,245+(i-1)*120,456,function()
+                if GP.db.settings.kosSort==field then GP.db.settings.kosSortAscending=not GP.db.settings.kosSortAscending else GP.db.settings.kosSort=field; GP.db.settings.kosSortAscending=false end
+                f.offset=0; UI.RefreshKoS()
+            end)
+        end
         for i=1,7 do
-            local row=CreateFrame('Frame',nil,f,'BackdropTemplate'); row:SetSize(580,54); row:SetPoint('TOPLEFT',245,-(92+(i-1)*58))
+            local row=CreateFrame('Frame',nil,f,'BackdropTemplate'); row:SetSize(580,50); row:SetPoint('TOPLEFT',245,-(122+(i-1)*54))
             row:SetBackdrop({bgFile='Interface\\Buttons\\WHITE8X8'})
             local shade=i%2==0 and .12 or .07; row:SetBackdropColor(shade,shade*.55,shade*.4,1)
-            local player=CreateFrame('Button',nil,row); player:SetSize(490,54); player:SetPoint('TOPLEFT')
+            local player=CreateFrame('Button',nil,row); player:SetSize(490,50); player:SetPoint('TOPLEFT')
             player:SetScript('OnClick',function() if row.record then UI.ShowKoSDetails(row.record) end end)
             player:SetScript('OnEnter',function() row.name:SetTextColor(1,.95,.75) end)
             player:SetScript('OnLeave',function() row.name:SetTextColor(1,.82,.38) end)
@@ -693,7 +743,7 @@ function UI.RefreshKoSPortraits()
         if anchor then
             local mark=UI.kosMarks[spec[1]]
             if not mark and not UI.InCombat() then
-                mark=CreateFrame('Frame',nil,UIParent); mark:SetSize(18,18); mark:SetPoint('BOTTOMRIGHT',anchor,'BOTTOMRIGHT',2,-2); mark:SetFrameStrata('HIGH')
+                mark=CreateFrame('Frame',nil,UIParent); mark:SetSize(36,36); mark:SetPoint('BOTTOMRIGHT',anchor,'BOTTOMRIGHT',2,-2); mark:SetFrameStrata('HIGH')
                 local t=mark:CreateTexture(nil,'OVERLAY'); t:SetAllPoints(); t:SetTexture(kosMedia..'KoSCrosshair'); UI.kosMarks[spec[1]]=mark
                 owner:HookScript('OnHide',function() mark:Hide() end)
                 owner:HookScript('OnShow',function() UI.RefreshKoSPortraits() end)
@@ -720,3 +770,65 @@ function UI.InstallKoSMenu()
 end
 local kosHooks=CreateFrame('Frame'); kosHooks:RegisterEvent('PLAYER_LOGIN'); kosHooks:RegisterEvent('ADDON_LOADED')
 kosHooks:SetScript('OnEvent',UI.InstallKoSMenu)
+
+function UI.DistanceText(map,x,y,otherMap,otherX,otherY)
+    local d=GP.Map and GP.Map.DistanceYards and GP.Map.DistanceYards(map,x,y,otherMap,otherX,otherY)
+    return d and ('Distance: ~'..math.floor(d+.5)..' yards') or 'Distance unavailable'
+end
+function UI.RefreshOfferDistance()
+    local f=UI.offer; local offer=f and f.currentOffer
+    if not offer then return end
+    local map,x,y
+    if GP.Map and GP.Map.Position then map,x,y=GP.Map.Position() end
+    f.detail:SetText(string.format('%s — %s %s\n%s (%.1f, %.1f)\n%s\nPotential reward: %s PvP Points',GP.DisplayName(offer.sender),offer.race or 'Unknown',offer.class or 'Unknown',f.zone or 'Unknown',offer.x*100,offer.y*100,UI.DistanceText(map,x,y,offer.map,offer.x,offer.y),offer.quote and tostring(offer.quote) or 'unavailable'))
+end
+function UI.RefreshTracker()
+    local n=GP.Network; local entries={}; local map,x,y=GP.Map.Position()
+    local a=n.active
+    if a then entries[#entries+1]={role='H',id=a.id,revision=a.revision,requester=a.requester,text='Helping '..GP.DisplayName(a.requester)..' (you accepted)\n'..(not a.acceptedAt and 'Awaiting acceptance acknowledgement' or (not a.positionAt or now()-a.positionAt>10) and 'Updating location...' or UI.DistanceText(map,x,y,a.map,a.x,a.y))} end
+    local r=n.request
+    if r then
+        if UnitIsDeadOrGhost and UnitIsDeadOrGhost('player') then map,x,y=r.map,r.x,r.y end
+        local helpers={}; for key,h in pairs(r.helpers) do helpers[#helpers+1]={key=key,h=h} end
+        table.sort(helpers,function(a,b) return a.key<b.key end)
+        for _,v in ipairs(helpers) do
+            local h=v.h; local p=h.position
+            entries[#entries+1]={role='R',id=r.id,key=v.key,revision=h.revision,completed=h.completedAt,text='Your request: '..GP.DisplayName(h.name)..' accepted\n'..(h.completedAt and 'Confirming completion...' or (not p or now()-p.at>10) and 'Updating location...' or UI.DistanceText(map,x,y,p[1],p[2],p[3]))}
+        end
+    end
+    if #entries==0 then if UI.tracker then UI.tracker:Hide() end; return end
+    if not UI.tracker then
+        local f=CreateFrame('Frame','GondorPvPFareTracker',UIParent,'BackdropTemplate'); UI.tracker=f; f.rows={}
+        f:SetWidth(300); f:SetFrameStrata('MEDIUM'); f:SetClampedToScreen(true); f:SetMovable(true); f:EnableMouse(true)
+        f:SetBackdrop({bgFile='Interface\\Buttons\\WHITE8X8',edgeFile='Interface\\Buttons\\WHITE8X8',edgeSize=1}); f:SetBackdropColor(.1,.03,.03,.92)
+        local header=CreateFrame('Button',nil,f); header:SetSize(300,24); header:SetPoint('TOP'); header:RegisterForDrag('LeftButton')
+        label(header,12,6,2,288,20):SetText('GONDOR — ACTIVE FARES (drag)')
+        header:SetScript('OnDragStart',function() f.dragging=true; f:StartMoving() end)
+        header:SetScript('OnDragStop',function()
+            f:StopMovingOrSizing(); f.dragging=false
+            local cx,cy=f:GetCenter(); local ratio=f:GetEffectiveScale()/UIParent:GetEffectiveScale()
+            GP.db.settings.trackerPosition={x=cx*ratio/UIParent:GetWidth(),y=cy*ratio/UIParent:GetHeight()}
+        end)
+        for i=1,5 do
+            local row=CreateFrame('Frame',nil,f); row:SetSize(290,48); row:SetPoint('TOPLEFT',5,-24-(i-1)*48)
+            row.text=label(row,11,3,3,250,43); row.text:SetJustifyH('LEFT')
+            row.cancel=button(row,'X',24,263,12,function()
+                local e=row.entry; if not e then return end
+                if e.role=='R' then n.CancelHelper(e.id,e.key,e.revision)
+                elseif n.active and n.active.id==e.id and n.active.requester==e.requester and n.active.revision==e.revision then n.CancelFare() end
+                UI.RefreshTracker()
+            end)
+            row.cancel:SetScript('OnEnter',function(self) if GameTooltip then GameTooltip:SetOwner(self,'ANCHOR_LEFT'); GameTooltip:AddLine('Cancel this fare'); GameTooltip:Show() end end)
+            row.cancel:SetScript('OnLeave',function() if GameTooltip then GameTooltip:Hide() end end)
+            f.rows[i]=row
+        end
+        f:EnableMouseWheel(true); f:SetScript('OnMouseWheel',function(_,delta) f.offset=(f.offset or 0)-delta; UI.RefreshTracker() end)
+    end
+    local f=UI.tracker; f:SetHeight(24+math.min(5,#entries)*48); f.offset=math.max(0,math.min(f.offset or 0,math.max(0,#entries-5)))
+    for i,row in ipairs(f.rows) do local e=entries[i+f.offset]; row.entry=e; row:SetShown(e~=nil); if e then row.text:SetText(e.text); row.cancel:SetShown(not e.completed) end end
+    if not f.dragging then
+        f:ClearAllPoints(); local p=GP.db.settings.trackerPosition
+        if type(p)=='table' and type(p.x)=='number' and type(p.y)=='number' then f:SetPoint('CENTER',UIParent,'BOTTOMLEFT',math.max(150,math.min(UIParent:GetWidth()-150,p.x*UIParent:GetWidth())),math.max(f:GetHeight()/2,math.min(UIParent:GetHeight()-f:GetHeight()/2,p.y*UIParent:GetHeight()))) else f:SetPoint('BOTTOMRIGHT',UIParent,'BOTTOMRIGHT',-40,30) end
+    end
+    f:Show()
+end

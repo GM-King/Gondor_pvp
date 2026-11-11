@@ -5,6 +5,7 @@ GP.KoSSync=S
 local prefix='GONDPVPKOS1'
 local fields={'key','author','editor','gen','added','seen','rev','alert','reason','guid','observer','zone','deleted','expired'}
 local rewardFields={'id','owner','victim','time'}
+local metadataFields={'key','value'}
 local detailFields={'key','gen','seen','race','class','level'}
 local function encode(s) return (tostring(s or ''):gsub('.',function(c) return string.format('%02x',c:byte()) end)) end
 local function decode(s) if #s%2~=0 or s:find('[^%da-f]') then return end return (s:gsub('..',function(c) return string.char(tonumber(c,16)) end)) end
@@ -40,8 +41,8 @@ end
 local function details(r,target,priority)
     record('M',{key=r.key,gen=r.gen,seen=r.detailsAt or 0,race=r.race or '',class=r.class or '',level=r.level or 0},detailFields,target,priority)
 end
-function S.Record(r) record('L',r,fields,nil,1); details(r,nil,1) end
-function S.Reward(r) record('R',r,rewardFields,nil,1) end
+function S.Record(r) record('L',r,fields,nil,1); details(r,nil,1); if K.store.listings[r.gen] then record('I',{key=r.gen,value=K.store.listings[r.gen]},metadataFields,nil,1) end end
+function S.Reward(r) record('R',r,rewardFields,nil,1); if K.store.attribution[r.id] then record('T',{key=r.id,value=K.store.attribution[r.id]},metadataFields,nil,1) end end
 function S.Claim(key,gen) enqueue('C|'..encode(key)..'|'..encode(gen),nil,0) end
 function S.Chat(text,management)
     if (GP.Network.InInstance() and not management) or not GP.IsEligibleGuild() then return end
@@ -51,6 +52,8 @@ local function digest()
     local rows={}
     for _,r in pairs(K.rows) do rows[#rows+1]=pack(r,fields)..'~'..pack({key=r.key,gen=r.gen,seen=r.detailsAt or 0,race=r.race or '',class=r.class or '',level=r.level or 0},detailFields) end
     for _,rs in pairs(K.store.backups) do for _,r in pairs(rs) do rows[#rows+1]=pack(r,rewardFields) end end
+    for key,value in pairs(K.store.listings) do rows[#rows+1]='I'..key..value end
+    for key,value in pairs(K.store.attribution) do rows[#rows+1]='T'..key..value end
     table.sort(rows); local a,b=1,0
     for _,r in ipairs(rows) do for i=1,#r do a=(a+r:byte(i))%65521; b=(b+a)%65521 end end
     return #rows..'-'..string.format('%.0f',b*65536+a)
@@ -72,12 +75,14 @@ function S.Message(message,distribution,sender)
         if S.peers[peer] and S.clock-S.peers[peer]<60 then return end; S.peers[peer]=S.clock
         for _,r in pairs(K.rows) do record('L',r,fields,peer,3); details(r,peer,3) end
         for _,rs in pairs(K.store.backups) do for _,r in pairs(rs) do record('R',r,rewardFields,peer,3) end end
+    for key,value in pairs(K.store.listings) do record('I',{key=key,value=value},metadataFields,peer,3) end
+        for key,value in pairs(K.store.attribution) do record('T',{key=key,value=value},metadataFields,peer,3) end
     elseif message:sub(1,2)=='C|' then
         local key,gen=message:match('^C|([^|]+)|([^|]+)$'); key=key and decode(key); gen=gen and decode(gen)
         if key and gen then local c=K.claims[key]; if not c or c.gen~=gen or K.clock>=c.expires or peer<c.reporter then K.claims[key]={gen=gen,reporter=peer,expires=K.clock+5} end end
         local p=key and K.pending[key]; if p and gen==p.gen and peer<p.reporter then p.reporter=peer end
     else
-        local kind,id,index,count,chunk=message:match('^D|([LRM])|(%d+)|(%d+)|(%d+)|(.*)$')
+        local kind,id,index,count,chunk=message:match('^D|([LRMIT])|(%d+)|(%d+)|(%d+)|(.*)$')
         index=tonumber(index); count=tonumber(count)
         if not kind or #id>10 or not count or count<1 or count>24 or not index or index<1 or index>count or #chunk>180 then return end
         local token=peer..':'..id; local part=S.parts[token]
@@ -86,8 +91,13 @@ function S.Message(message,distribution,sender)
         part.chunks[index]=chunk
         for i=1,count do if not part.chunks[i] then return end end
         S.parts[token]=nil; local data=table.concat(part.chunks)
-        local r=unpackRecord(data,kind=='L' and fields or kind=='M' and detailFields or rewardFields); if not r then return end
-        if kind=='M' then r.seen=tonumber(r.seen); r.level=tonumber(r.level); K.MergeDetails(r)
+        local r=unpackRecord(data,(kind=='I' or kind=='T') and metadataFields or kind=='L' and fields or kind=='M' and detailFields or rewardFields); if not r then return end
+        if kind=='I' or kind=='T' then
+            if #r.key<=220 and #r.value<=160 and not (r.key..r.value):find('[|%c]') then
+                local target=kind=='I' and K.store.listings or K.store.attribution
+                if not target[r.key] then target[r.key]=r.value end
+            end
+        elseif kind=='M' then r.seen=tonumber(r.seen); r.level=tonumber(r.level); K.MergeDetails(r)
         elseif kind=='L' then
             for _,f in ipairs({'added','seen','rev','alert','expired'}) do r[f]=tonumber(r[f]) end
             r.deleted=r.deleted=='true'; K.Merge(r)

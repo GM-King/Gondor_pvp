@@ -29,6 +29,7 @@ function K.Init()
     local scope=GP.guildName:lower()..'@'..(safe(GetNormalizedRealmName) or safe(GetRealmName) or 'unknown')
     if type(GondorPvPKoS[scope])~='table' then GondorPvPKoS[scope]={rows={},backups={}} end
     K.store=GondorPvPKoS[scope]; if type(K.store.rows)~='table' then K.store.rows={} end; if type(K.store.backups)~='table' then K.store.backups={} end
+    K.store.listings=K.store.listings or {}; K.store.attribution=K.store.attribution or {}
     local saved=K.store.rows; K.store.rows={}; K.rows=K.store.rows
     for _,r in pairs(saved) do pcall(K.Merge,r) end
     if type(GP.db.kosReceipts)~='table' then GP.db.kosReceipts={} end; if type(GP.db.kosSoundAt)~='table' then GP.db.kosSoundAt={} end
@@ -39,9 +40,33 @@ function K.Init()
     K.Prune()
 end
 function K.Active(r) return type(r)=='table' and not r.deleted and K.Now()-(r.seen or r.added)<K.TTL end
+function K.Stats(r)
+    local total,players,seen=0,{},{}
+    local listing=(K.store.listings or {})[r.gen] or r.gen
+    for _,records in pairs(K.store.backups or {}) do for id,receipt in pairs(records) do
+        local attribution=(K.store.attribution or {})[id]
+        if not seen[id] and K.ValidReceipt(receipt) and receipt.victim==r.key and
+            ((attribution and attribution==listing) or (not attribution and receipt.time>=r.added)) then
+            seen[id]=true; total=total+1; players[receipt.owner]=(players[receipt.owner] or 0)+1
+        end
+    end end
+    local rows={}; for name,count in pairs(players) do rows[#rows+1]={name=name,count=count} end
+    table.sort(rows,function(a,b) if a.count~=b.count then return a.count>b.count end return a.name<b.name end)
+    return total,rows
+end
 function K.List()
     local out={}; for _,r in pairs(K.rows or {}) do if K.Active(r) then out[#out+1]=r end end
-    table.sort(out,function(a,b) if a.seen~=b.seen then return a.seen>b.seen end return a.key<b.key end); return out
+    local sort=GP.db.settings.kosSort or 'seen'; local asc=GP.db.settings.kosSortAscending
+    local counts={}; if sort=='kills' then for _,r in ipairs(out) do counts[r.key]=K.Stats(r) end end
+    table.sort(out,function(a,b)
+        local av,bv=a.seen,b.seen
+        if sort=='level' then
+            av,bv=a.level or 0,b.level or 0
+            if (av==0)~=(bv==0) then return av~=0 end
+        elseif sort=='kills' then av,bv=counts[a.key],counts[b.key] end
+        if av==bv then return a.key<b.key end
+        if asc then return av<bv end return av>bv
+    end); return out
 end
 function K.Publish(r) if GP.KoSSync then GP.KoSSync.Record(r) end end
 function K.DetailText(value)
@@ -171,6 +196,7 @@ function K.UndoDelete(key)
     if restored.gen<=old.gen then restored.gen=old.gen..'+' end
     if #restored.gen>160 then GP.Print('That KoS removal cannot be restored.'); return false end
     restored.rev=1; restored.deleted=nil; restored.editor=K.Own()
+    K.store.listings[restored.gen]=K.store.listings[u.gen] or u.gen
     K.rows[key]=restored; GP.db.kosUndo[key]=nil
     K.Publish(restored); managementNotice('restored',key)
     if GP.UI and GP.UI.RefreshKoS then GP.UI.RefreshKoS() end
@@ -223,6 +249,7 @@ function K.Kill(attacker,victim)
     K.deaths[victim]=true; GP.db.kosSequence=(GP.db.kosSequence or 0)+1
     local receipt={owner=K.Own(),victim=key,time=K.Now()}
     receipt.id=receipt.owner..':'..K.Now()..':'..GP.db.kosSequence
+    K.store.attribution[receipt.id]=K.store.listings[r.gen] or r.gen
     K.Receipt(receipt); if GP.KoSSync then GP.KoSSync.Reward(receipt); GP.KoSSync.Chat('Gondor KoS target '..GP.DisplayName(key)..' killed by '..GP.DisplayName(receipt.owner)..'! +5 PvP Points.') end
     GP.Print('KoS kill: +5 PvP Points.'); K.status='Last KoS killing blow verified.'
 end

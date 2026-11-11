@@ -32,6 +32,17 @@ function M.World(map, x, y)
     end
 end
 
+function M.DistanceYards(aMap,ax,ay,bMap,bx,by)
+    for _,v in ipairs({aMap or false,ax or false,ay or false,bMap or false,bx or false,by or false}) do
+        if not clean(v) or type(v)~='number' or v~=v or v==math.huge or v==-math.huge then return end
+    end
+    if aMap<1 or bMap<1 or aMap~=math.floor(aMap) or bMap~=math.floor(bMap) then return end
+    if ax<0 or ax>1 or ay<0 or ay>1 or bx<0 or bx>1 or by<0 or by>1 then return end
+    local a,b,i=M.World(aMap,ax,ay); local c,d,j=M.World(bMap,bx,by)
+    if not a or not c or i~=j then return end
+    return ((a-c)^2+(b-d)^2)^.5
+end
+
 function M.Quote(aMap, ax, ay, bMap, bx, by)
     local x1, y1, i1 = M.World(aMap, ax, ay)
     local x2, y2, i2 = M.World(bMap, bx, by)
