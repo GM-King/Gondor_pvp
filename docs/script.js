@@ -1,3 +1,28 @@
+// Use the release publication time, with a bundled timestamp for offline visits.
+(() => {
+  const time = document.getElementById('last-updated');
+  let updated = Date.parse(time.dateTime);
+  function refresh() {
+    const minutes = Math.max(0, Math.floor((Date.now() - updated) / 60000));
+    const [count, unit] = minutes >= 1440 ? [Math.floor(minutes / 1440), 'day']
+      : minutes >= 60 ? [Math.floor(minutes / 60), 'hour'] : [minutes, 'minute'];
+    time.textContent = `${count} ${unit}${count === 1 ? '' : 's'} ago`;
+    time.title = new Date(updated).toLocaleString();
+  }
+  refresh();
+  setInterval(refresh, 60000);
+  fetch('https://api.github.com/repos/GM-King/Gondor_pvp/releases/tags/v0.9.13-beta')
+    .then(response => { if (!response.ok) throw new Error('Release unavailable'); return response.json(); })
+    .then(release => {
+      const published = Date.parse(release.published_at);
+      if (!Number.isFinite(published)) return;
+      updated = published;
+      time.dateTime = new Date(updated).toISOString();
+      refresh();
+    })
+    .catch(() => {}); // Keep the bundled date if GitHub is unavailable or rate limited.
+})();
+
 (() => {
   const roasts = [
     'I’ve seen target dummies with better fucking footwork!',

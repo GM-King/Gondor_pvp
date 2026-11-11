@@ -608,3 +608,6 @@ dialog p {
 header { gap:20px; }
 nav { flex-wrap:wrap; justify-content:flex-end; column-gap:20px; row-gap:8px; }
 .kos-art img { max-height:540px; object-fit:contain; }
+
+.download-action { display:flex; flex-direction:column; align-items:flex-start; }
+.download-action .updated { margin:10px 0 0; }
