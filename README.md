@@ -6,7 +6,7 @@ A PvP card binder and guild help system for **Gondor Calls for Raid** on WoW For
 
 ## Download
 
-**[Download Gondor PvP 0.9.13 beta (78.1 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.13-beta/Gondor_PvP.zip)**
+**[Download Gondor PvP 0.9.14 beta (78.1 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.14-beta/Gondor_PvP.zip)**
 
 Visit the [Gondor PvP website](https://gm-king.github.io/Gondor_pvp/) for installation instructions and an overview.
 
@@ -90,7 +90,7 @@ Manual KoS removals announce the target and deleting member in `gcfrpvp`. The de
 
 ## KoS statistics and help audiences
 
-KoS rows show level, last seen, and total kills. Click those headings to sort; click again to reverse. Unknown levels stay last. The sort choice is saved per character. Click a target name for a scrollable guild-member kill breakdown. Verified killing blows count once, and pets credit their owners. Totals cover the current listing: removing or expiring and freshly adding a target resets the total; Undo restores it. Earned points remain intact. Older kill records use the listing creation time as their cutoff. New KoS kills announce once in gcfrpvp; synchronization and backup recovery stay silent.
+The KoS table has Name, Level, Last Seen, and Total Kills columns, class-coloured names, and a draggable scrollbar. Click a heading to sort; click again to reverse. Unknown levels stay last. The sort choice is saved per character. Click a target name for compact details and a separate scrollable Guildmate/Kills table. Guildmate names use roster class colours when available. Verified killing blows count once, and pets credit their owners. Totals cover the current listing: removing or expiring and freshly adding a target resets the total; Undo restores it. Earned points remain intact. Older kill records use the listing creation time as their cutoff. New KoS kills announce once in gcfrpvp; synchronization and backup recovery stay silent.
 
 Zone offers use private addon messages to online guildmates whose roster zone matches the request zone. Subzones share their containing zone. Recipients must still be in the zone when the offer appears or is accepted. Unknown zone or roster data never causes a World broadcast. Both choices still post the configured-channel announcement. World offers include party and raid members. Saved offer opt-outs and instance restrictions still apply. Updated addons are required for Zone offers and precise listing attribution.
 

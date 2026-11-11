@@ -60,7 +60,10 @@ function K.List()
     local counts={}; if sort=='kills' then for _,r in ipairs(out) do counts[r.key]=K.Stats(r) end end
     table.sort(out,function(a,b)
         local av,bv=a.seen,b.seen
-        if sort=='level' then
+        if sort=='name' then
+            if asc then return a.key<b.key end
+            return a.key>b.key
+        elseif sort=='level' then
             av,bv=a.level or 0,b.level or 0
             if (av==0)~=(bv==0) then return av~=0 end
         elseif sort=='kills' then av,bv=counts[a.key],counts[b.key] end

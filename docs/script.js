@@ -11,7 +11,7 @@
   }
   refresh();
   setInterval(refresh, 60000);
-  fetch('https://api.github.com/repos/GM-King/Gondor_pvp/releases/tags/v0.9.13-beta')
+  fetch('https://api.github.com/repos/GM-King/Gondor_pvp/releases/tags/v0.9.14-beta')
     .then(response => { if (!response.ok) throw new Error('Release unavailable'); return response.json(); })
     .then(release => {
       const published = Date.parse(release.published_at);
