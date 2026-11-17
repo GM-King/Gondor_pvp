@@ -6,7 +6,7 @@ A PvP card binder and guild help system for **Gondor Calls for Raid** on WoW For
 
 ## Download
 
-**[Download Gondor PvP 0.9.14 beta (78.1 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.14-beta/Gondor_PvP.zip)**
+**[Download Gondor PvP 0.9.15 beta (78.1 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.15-beta/Gondor_PvP.zip)**
 
 Visit the [Gondor PvP website](https://gm-king.github.io/Gondor_pvp/) for installation instructions and an overview.
 
@@ -90,6 +90,12 @@ Manual KoS removals announce the target and deleting member in `gcfrpvp`. The de
 
 ## KoS statistics and help audiences
 
+### Nearby KoS targets
+
+The **KoS Targets** box appears at the top centre when a living KoS player is detected locally through a nameplate, target, focus or mouseover in the open world. Click a head portrait to target that player; hover for their name and KoS reason. Portraits remain for 30 seconds after detection is lost. A guild sighting alone does not open the box.
+
+Drag the header outside combat to move it; the position is saved per character. The X dismisses the current encounter, including during combat. It automatically returns after all nearby targets have cleared and a fresh encounter begins. **Show nearby targets** in the Kill on Sight window reopens a dismissed encounter manually. During combat, existing portraits remain clickable while additions, removals and movement wait until combat ends. These controls require live Forever verification.
+
 The KoS table has Name, Level, Last Seen, and Total Kills columns, class-coloured names, and a draggable scrollbar. Click a heading to sort; click again to reverse. Unknown levels stay last. The sort choice is saved per character. Click a target name for compact details and a separate scrollable Guildmate/Kills table. Guildmate names use roster class colours when available. Verified killing blows count once, and pets credit their owners. Totals cover the current listing: removing or expiring and freshly adding a target resets the total; Undo restores it. Earned points remain intact. Older kill records use the listing creation time as their cutoff. New KoS kills announce once in gcfrpvp; synchronization and backup recovery stay silent.
 
 Zone offers use private addon messages to online guildmates whose roster zone matches the request zone. Subzones share their containing zone. Recipients must still be in the zone when the offer appears or is accepted. Unknown zone or roster data never causes a World broadcast. Both choices still post the configured-channel announcement. World offers include party and raid members. Saved offer opt-outs and instance restrictions still apply. Updated addons are required for Zone offers and precise listing attribution.
@@ -103,3 +109,7 @@ These changes are verified offline only; live Forever compatibility remains unve
 Zone/World choices and death prompts open in the upper-middle. The X or Escape closes without requesting help; death prompts still expire after 15 seconds. Incoming offers stay bottom-right and show approximate straight-line yards to the requested location. Incompatible or unavailable locations show Distance unavailable.
 
 Accepted fares appear in a compact bottom-right tracker, including while the binder is closed or during combat. It shows your requester and responding helpers, with distance updates. Positions older than ten seconds show Updating location. Each row's X cancels that fare only; other helpers and your request remain active. Drag the header to move it; the position is saved per character. Scroll to see more than five fares. Completion acknowledgements remain visible until finished. The minimap artwork and red background share a circular mask inside the existing border.
+
+## 0.9.15 beta — KoS portrait targeting
+
+Adds the movable nearby KoS Targets box and fixes its portrait clicks for Forever’s regional two-part names: `/targetexact First Lastname` now uses a space instead of the identity separator dash. Realm-qualified names on other clients retain their dash. Offline regression checks cover both name modes and combat deferral; live Forever verification remains pending.

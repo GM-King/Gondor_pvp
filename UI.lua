@@ -905,6 +905,7 @@ function UI.ShowKoS()
         f.range=kosText(f,11,250,499,540,20)
         f.mute=button(f,'Sound: on',120,250,20,function() GP.db.settings.kosSound=not GP.db.settings.kosSound; UI.RefreshKoS() end)
         f.undo=button(f,'Undo deletes',120,390,20,UI.ShowKoSUndo)
+        button(f,'Show nearby targets',170,525,20,function() if GP.KoSTargets then GP.KoSTargets.ShowNearby() end end)
         button(f,'Close',100,710,20,function() f:Hide() end)
         f:SetScript('OnUpdate',function(_,elapsed) f.elapsed=(f.elapsed or 0)+elapsed; if f.elapsed>=1 then f.elapsed=0; UI.RefreshKoS() end end)
     end
