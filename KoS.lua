@@ -12,10 +12,23 @@ function K.Now() return safe(GetServerTime) or safe(time) or 0 end
 function K.Name(name)
     if issecretvalue and issecretvalue(name) then return end
     if type(name)~='string' or name=='' or #name>100 or name:find('[~|%c]') then return end
-    if not name:find('-',1,true) then name=name..'-'..(safe(GetNormalizedRealmName) or safe(GetRealmName) or '') end
+    if not name:find('-',1,true) then
+        if safe(RegionalUniqueNamesEnabled)==true then
+            name=name:gsub('^%s*([^%s]+)%s+([^%s]+)%s*$','%1-%2')
+        end
+        if not name:find('-',1,true) then name=name..'-'..(safe(GetNormalizedRealmName) or safe(GetRealmName) or '') end
+    end
     local key=name:lower():gsub('%s+',''); return key
 end
-function K.Own() local n,r=safe(UnitName,'player'); return K.Name(n and (r and r~='' and n..'-'..r or n)) end
+local function unitName(unit)
+    local n,r=safe(UnitName,unit); if type(n)~='string' then return end
+    if safe(RegionalUniqueNamesEnabled)==true and (not r or r=='') then
+        local first,last=n:match('^%s*([^%s]+)%s+([^%s]+)%s*$')
+        if first then n,r=first,last end
+    end
+    return r and r~='' and n..'-'..r or n
+end
+function K.Own() return K.Name(unitName('player')) end
 function K.Reason(s)
     if type(s)~='string' then return '' end
     s=s:gsub('[%c]',' '):gsub('|','')
@@ -24,12 +37,17 @@ function K.Reason(s)
     return s:sub(1,stop),math.min(n,100)
 end
 function K.Init()
+    K.statsCache={}
+    K.statsRevision=(K.statsRevision or 0)+1
     if not GP.db then return end
     if type(GondorPvPKoS)~='table' then GondorPvPKoS={} end
     local scope=GP.guildName:lower()..'@'..(safe(GetNormalizedRealmName) or safe(GetRealmName) or 'unknown')
     if type(GondorPvPKoS[scope])~='table' then GondorPvPKoS[scope]={rows={},backups={}} end
     K.store=GondorPvPKoS[scope]; if type(K.store.rows)~='table' then K.store.rows={} end; if type(K.store.backups)~='table' then K.store.backups={} end
     K.store.listings=K.store.listings or {}; K.store.attribution=K.store.attribution or {}
+    if type(K.store.killAuthors)~='table' then K.store.killAuthors={} end
+    if type(K.store.killMembers)~='table' then K.store.killMembers={} end
+    K.presence={}
     local saved=K.store.rows; K.store.rows={}; K.rows=K.store.rows
     for _,r in pairs(saved) do pcall(K.Merge,r) end
     if type(GP.db.kosReceipts)~='table' then GP.db.kosReceipts={} end; if type(GP.db.kosSoundAt)~='table' then GP.db.kosSoundAt={} end
@@ -40,19 +58,94 @@ function K.Init()
     K.Prune()
 end
 function K.Active(r) return type(r)=='table' and not r.deleted and K.Now()-(r.seen or r.added)<K.TTL end
-function K.Stats(r)
-    local total,players,seen=0,{},{}
+function K.EachKill(r,visit)
+    local seen={}
     local listing=(K.store.listings or {})[r.gen] or r.gen
     for _,records in pairs(K.store.backups or {}) do for id,receipt in pairs(records) do
         local attribution=(K.store.attribution or {})[id]
         if not seen[id] and K.ValidReceipt(receipt) and receipt.victim==r.key and
-            ((attribution and attribution==listing) or (not attribution and receipt.time>=r.added)) then
-            seen[id]=true; total=total+1; players[receipt.owner]=(players[receipt.owner] or 0)+1
+            ((K.store.historyTargets and K.store.historyTargets[r.key]) or (attribution and attribution==listing) or (not attribution and receipt.time>=r.added)) then
+            seen[id]=true; visit(receipt)
         end
     end end
+    for id,receipt in pairs((K.store.statistics or {})[r.key] or {}) do
+        if not seen[id] and K.ValidReceipt(receipt) then
+            seen[id]=true; visit(receipt)
+        end
+    end
+end
+function K.EachCredited(receipt,visit)
+    visit(receipt.owner)
+    for name in pairs(K.store.killMembers[receipt.id] or {}) do
+        if name~=receipt.owner then visit(name) end
+    end
+end
+local function ranked(players)
     local rows={}; for name,count in pairs(players) do rows[#rows+1]={name=name,count=count} end
     table.sort(rows,function(a,b) if a.count~=b.count then return a.count>b.count end return a.name<b.name end)
+    return rows
+end
+function K.Stats(r)
+    local cached=K.statsCache[r.gen]
+    if cached and cached.revision==K.statsRevision then return cached.total,cached.players end
+    local total,players=0,{}
+    K.EachKill(r,function(receipt)
+        total=total+1
+        K.EachCredited(receipt,function(name) players[name]=(players[name] or 0)+1 end)
+    end)
+    local rows=ranked(players)
+    K.statsCache[r.gen]={revision=K.statsRevision or 0,total=total,players=rows}
     return total,rows
+end
+function K.Leaderboard()
+    local totals={}
+    for _,r in pairs(K.rows) do
+        if K.Active(r) then
+            local _,players=K.Stats(r)
+            for _,player in ipairs(players) do
+                totals[player.name]=(totals[player.name] or 0)+player.count
+            end
+        end
+    end
+    local rows=ranked(totals)
+    for i=#rows,6,-1 do rows[i]=nil end
+    return rows
+end
+
+function K.LatestKills()
+    local before=K.Now()
+    local hour,minute=safe(GetGameTime)
+    local now=K.Now()
+    if math.floor(before/60)~=math.floor(now/60) then hour,minute=safe(GetGameTime) end
+    if type(hour)~='number' or type(minute)~='number' or hour<0 or hour>23 or minute<0 or minute>59
+        or hour~=math.floor(hour) or minute~=math.floor(minute) then return end
+    if now<=0 then return end
+    -- The realm clock supplies the hour and minute. Epoch time supplies seconds.
+    local midnight=now-now%60-hour*3600-minute*60
+    local latest,rows=midnight,{}
+    for _,r in pairs(K.rows) do
+        if K.Active(r) then
+            K.EachKill(r,function(receipt)
+                if receipt.time<latest or receipt.time>now then return end
+                if receipt.time>latest then latest=receipt.time; rows={} end
+                local listing=K.store.listings[r.gen] or r.gen
+                local attributed=K.store.attribution[receipt.id]
+                local author=K.store.killAuthors[receipt.id]
+                if not author and (attributed==listing or (not attributed and receipt.time>=r.added)) then
+                    author=r.author
+                end
+                K.EachCredited(receipt,function(name)
+                    rows[#rows+1]={name=name,victim=r.key,author=author,id=receipt.id}
+                end)
+            end)
+        end
+    end
+    table.sort(rows,function(a,b)
+        if a.victim~=b.victim then return a.victim<b.victim end
+        if a.name~=b.name then return a.name<b.name end
+        return a.id<b.id
+    end)
+    return rows,now-latest
 end
 function K.List()
     local out={}; for _,r in pairs(K.rows or {}) do if K.Active(r) then out[#out+1]=r end end
@@ -129,13 +222,13 @@ function K.Merge(r)
         if r.seen>old.seen then observer,zone,guid=r.observer,r.zone,r.guid end
         if old.deleted or (old.rev>r.rev) or (old.rev==r.rev and (old.editor or '')>(r.editor or '')) then
             if old.deleted and r.deleted and (r.rev>old.rev or (r.rev==old.rev and r.editor>old.editor)) then old.rev=r.rev; old.editor=r.editor end
-            old.seen=seen; old.alert=math.max(old.alert,r.alert); old.observer=observer; old.zone=zone; old.guid=guid; K.Prune(); if GP.UI and GP.UI.RefreshKoSPortraits then GP.UI.RefreshKoSPortraits() end; return true
+            old.seen=seen; old.alert=math.max(old.alert,r.alert); old.observer=observer; old.zone=zone; old.guid=guid; K.Prune(); if GP.PersonalKoS then GP.PersonalKoS.VerifyGuild(r.key) end; if GP.UI and GP.UI.RefreshKoSPortraits then GP.UI.RefreshKoSPortraits() end; return true
         end
         r.seen=seen; r.observer=observer; r.zone=zone; r.guid=guid; r.deleted=old.deleted or r.deleted; r.alert=math.max(old.alert,r.alert)
     elseif old and old.gen>r.gen then return false end
     K.rows[r.key]=r
     if K.pendingDetails[r.key] then K.MergeDetails(K.pendingDetails[r.key]) end
-    K.Prune(); if GP.UI and GP.UI.RefreshKoSPortraits then GP.UI.RefreshKoSPortraits() end; return true
+    K.Prune(); if GP.PersonalKoS then GP.PersonalKoS.VerifyGuild(r.key) end; if GP.UI and GP.UI.RefreshKoSPortraits then GP.UI.RefreshKoSPortraits() end; return true
 end
 function K.Add(identity,reason)
     if not GP.IsEligibleGuild() or not identity or identity.faction~='Alliance' then return false end
@@ -153,7 +246,7 @@ function K.Add(identity,reason)
         r.race=K.DetailText(identity.race); r.class=K.DetailText(identity.class); r.level=K.DetailLevel(identity.level); r.detailsAt=stamp
         K.rows[key]=r
     end
-    K.Publish(r); return true
+    K.Publish(r); if GP.PersonalKoS then GP.PersonalKoS.VerifyGuild(key) end; return true
 end
 local function managementNotice(action,key)
     local display=GP.UI and GP.UI.KoSPlayerName or GP.DisplayName
@@ -201,22 +294,78 @@ function K.UndoDelete(key)
     restored.rev=1; restored.deleted=nil; restored.editor=K.Own()
     K.store.listings[restored.gen]=K.store.listings[u.gen] or u.gen
     K.rows[key]=restored; GP.db.kosUndo[key]=nil
-    K.Publish(restored); managementNotice('restored',key)
+    K.Publish(restored); if GP.PersonalKoS then GP.PersonalKoS.VerifyGuild(key) end; managementNotice('restored',key)
     if GP.UI and GP.UI.RefreshKoS then GP.UI.RefreshKoS() end
     if GP.UI and GP.UI.RefreshKoSPortraits then GP.UI.RefreshKoSPortraits() end
     return true
 end
 function K.Identity(unit)
     if safe(UnitIsPlayer,unit)~=true or safe(UnitFactionGroup,unit)~='Alliance' then return end
-    local n,r=safe(UnitName,unit); if not n then return end
-    return {name=r and r~='' and n..'-'..r or n,faction='Alliance',guid=safe(UnitGUID,unit),race=K.DetailText(safe(UnitRace,unit)),class=K.DetailText(safe(UnitClass,unit)),level=K.DetailLevel(safe(UnitLevel,unit))}
+    local name=unitName(unit); if not name then return end
+    return {name=name,faction='Alliance',guid=safe(UnitGUID,unit),race=K.DetailText(safe(UnitRace,unit)),class=K.DetailText(safe(UnitClass,unit)),level=K.DetailLevel(safe(UnitLevel,unit))}
+end
+
+local function finite(value)
+    return not (issecretvalue and issecretvalue(value)) and type(value)=='number'
+        and value==value and value~=math.huge and value~=-math.huge
+end
+local function position(unit)
+    if type(UnitPosition)~='function' then return end
+    local ok,x,y,z,space=pcall(UnitPosition,unit)
+    if ok and finite(x) and finite(y) and finite(z) and finite(space) then
+        return x,y,z,space
+    end
+end
+local function nearby(unit)
+    if safe(UnitIsVisible,unit)~=true then return false end
+    if UnitInPhase and safe(UnitInPhase,unit)~=true then return false end
+    if UnitIsGhost and safe(UnitIsGhost,unit)~=false then return false end
+    if not UnitIsGhost and safe(UnitIsDeadOrGhost,unit)~=false then return false end
+    local squared,checked=safe(UnitDistanceSquared,unit)
+    if checked==true and finite(squared) and squared>=0 then return squared<=1600 end
+    local x,y,z,space=position(unit)
+    if not x then return false end
+    local px,py,pz,playerSpace=position('player')
+    return space==playerSpace and (x-px)^2+(y-py)^2+(z-pz)^2<=1600
+end
+local presenceUnits={'target','focus','mouseover','targettarget','focustarget'}
+for i=1,40 do
+    presenceUnits[#presenceUnits+1]='nameplate'..i
+    presenceUnits[#presenceUnits+1]='raid'..i
+    if i<=4 then presenceUnits[#presenceUnits+1]='party'..i end
+end
+function K.NearbyGuild()
+    local members={}
+    local own=K.Own()
+    if not GP.KoSSync then return members end
+    for _,unit in ipairs(presenceUnits) do
+        if safe(UnitExists,unit) and safe(UnitIsPlayer,unit)==true then
+            local name=K.Name(unitName(unit))
+            if name and name~=own and not members[name] and GP.KoSSync.Member(name) and nearby(unit) then
+                members[name]=true
+            end
+        end
+    end
+    return members
+end
+function K.WasNearby(name,stamp)
+    local age=K.Now()-stamp
+    if GP.Network.InInstance() or age<0 or age>30 then return false end
+    for _,sample in pairs(K.presence) do
+        if sample.time<=stamp and stamp-sample.time<=2 and sample.members[name] then return true end
+    end
+    return false
 end
 function K.Observe(unit)
     if not GP.IsEligibleGuild() or GP.Network.InInstance() then return end
     local id=K.Identity(unit); local key=id and K.Name(id.name); local r=key and K.rows[key]
     if not K.Active(r) or safe(UnitIsVisible,unit)~=true or safe(UnitIsDeadOrGhost,unit)~=false then return end
     local stamp=K.Now(); K.units[unit]=true
-    if id.guid then K.guids[id.guid]=key; K.deaths[id.guid]=nil; r.guid=id.guid end
+    if id.guid then
+        K.guids[id.guid]=key; r.guid=id.guid
+        local death=K.deaths[id.guid]
+        if type(death)~='number' or stamp-death>=2 then K.deaths[id.guid]=nil end
+    end
     r.seen=stamp; r.expired=nil; r.observer=K.Own(); r.zone=safe(GetRealZoneText) or ''
     r.race=id.race; r.class=id.class; r.level=id.level; r.detailsAt=stamp
     if stamp-(GP.db.kosSoundAt[key] or 0)>=600 then
@@ -232,9 +381,14 @@ function K.Observe(unit)
     if stamp-(r.sentSeen or 0)>=30 then r.sentSeen=stamp; K.Publish(r) end
 end
 function K.ValidReceipt(r)
-    return type(r)=='table' and type(r.id)=='string' and #r.id<=220 and K.Name(r.owner)==r.owner and K.Name(r.victim)==r.victim and type(r.time)=='number' and r.time==r.time and r.time>=0 and r.time<=K.Now()+60
+    return type(r)=='table' and type(r.id)=='string' and #r.id<=220
+        and type(r.owner)=='string' and K.Name(r.owner)==r.owner
+        and type(r.victim)=='string' and K.Name(r.victim)==r.victim
+        and type(r.time)=='number' and r.time==r.time and r.time>=0 and r.time<=K.Now()+60
 end
 function K.Receipt(r)
+    K.statsRevision=(K.statsRevision or 0)+1
+    if GP.PersonalKoS then GP.PersonalKoS.Receipt(r) end
     if not K.ValidReceipt(r) then return end
     local rows=K.store.backups[r.owner] or {}; K.store.backups[r.owner]=rows; rows[r.id]=r
     if r.owner==K.Own() and not GP.db.kosReceipts[r.id] then GP.db.kosReceipts[r.id]=r; if GP.UI then GP.UI.Refresh() end end
@@ -248,16 +402,25 @@ function K.Kill(attacker,victim)
     if not ownGUID then K.status='Kill verification unavailable: local identity restricted.'; return end
     if attacker~=ownGUID and attacker~=petGUID then return end
     local key=K.guids[victim]; if not key then K.status='Kill verification unavailable: victim was not identified locally.'; return end; local r=K.rows[key]
-    if not K.Active(r) or K.deaths[victim] then return end
-    K.deaths[victim]=true; GP.db.kosSequence=(GP.db.kosSequence or 0)+1
-    local receipt={owner=K.Own(),victim=key,time=K.Now()}
-    receipt.id=receipt.owner..':'..K.Now()..':'..GP.db.kosSequence
+    local owner=K.Own()
+    if not owner or not K.Active(r) or K.deaths[victim] then return end
+    local receipt={owner=owner,victim=key,time=K.Now()}
+    K.deaths[victim]=receipt.time; GP.db.kosSequence=(GP.db.kosSequence or 0)+1
+    receipt.id=receipt.owner..':'..receipt.time..':'..GP.db.kosSequence
     K.store.attribution[receipt.id]=K.store.listings[r.gen] or r.gen
+    K.store.killAuthors[receipt.id]=r.author
+    K.store.killMembers[receipt.id]=K.NearbyGuild()
     K.Receipt(receipt); if GP.KoSSync then GP.KoSSync.Reward(receipt); GP.KoSSync.Chat('Gondor KoS target '..GP.DisplayName(key)..' killed by '..GP.DisplayName(receipt.owner)..'! +5 PvP Points.') end
     GP.Print('KoS kill: +5 PvP Points.'); K.status='Last KoS killing blow verified.'
 end
 function K.Update(elapsed)
     K.clock=K.clock+elapsed; if not K.rows or not GP.IsEligibleGuild() then return end
+    if GP.Network.InInstance() then K.presence={}
+    elseif K.clock>=(K.nextPresence or 0) then
+        K.nextPresence=K.clock+1
+        local now=K.Now()
+        K.presence[math.floor(now)%31]={time=now,members=K.NearbyGuild()}
+    end
     if K.clock>=(K.nextPrune or 0) then K.nextPrune=K.clock+60; K.Prune(); K.UndoList() end
     if K.clock>=(K.nextUnits or 0) then K.nextUnits=K.clock+5; for unit in pairs(K.units) do if safe(UnitExists,unit) then K.Observe(unit) else K.units[unit]=nil end end end
     for key,p in pairs(K.pending) do if K.clock>=p.at then
@@ -274,6 +437,7 @@ frame:SetScript('OnEvent',function(_,event,a,b)
     if not GP.db then return end
     if event=='PLAYER_LOGIN' then K.Init(); if GP.KoSSync then GP.KoSSync.Init() end; K.Observe('target'); K.Observe('focus')
     elseif not K.rows then return
+    elseif event=='PLAYER_ENTERING_WORLD' then K.presence={}; K.Observe('target'); K.Observe('focus')
     elseif event=='PARTY_KILL' then K.Kill(a,b)
     elseif event=='NAME_PLATE_UNIT_REMOVED' then K.units[a]=nil
     elseif event=='NAME_PLATE_UNIT_ADDED' then K.Observe(a)

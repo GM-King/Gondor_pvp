@@ -15,7 +15,7 @@ The player ZIP includes the card catalog and all textures. The public source con
 ## Getting started
 
 1. Install the `Gondor_PvP` folder in the Forever `Interface/AddOns` directory and enable it at character selection.
-2. Type `/gpvp` to open the card binder. Right-click the female orc minimap button for the binder. Left-click it for Muster Rohirrim (Zone) or Light Beacons (World). Settings remain available in the binder.
+2. Type `/gpvp` to open the card binder. Right-click the female orc minimap button for Menu, Personal KoS and Guild KoS. Left-click it for Muster Rohirrim (Zone) or Light Beacons (World). Settings remain available in the binder.
 3. Open Settings and opt in to **PvP death alerts** and/or **incoming Kill Share offers**. Both are off by default. The default announcement channel is `gcfrpvp`; the addon joins it when sending. Choose a different custom channel, `GUILD`, `PARTY`, or `RAID` in settings.
 4. Configure incoming offer expiry from 5 to 60 seconds; the default is 60.
 
@@ -90,6 +90,10 @@ Manual KoS removals announce the target and deleting member in `gcfrpvp`. The de
 
 ## KoS statistics and help audiences
 
+The Guild KoS page has **Kill Leaderboard** and **Latest Kill** buttons. The leaderboard posts up to five guildmates by total credit across the current list. Latest Kill lists everyone credited at the newest kill time today, along with the target, time elapsed and who added the target. Today starts at realm midnight. Both reports post to guild chat.
+
+Each target death counts once. Every guildmate the client can verify within 40 yards of the killer gets credit in the Guild Kill Breakdown and leaderboard, including guildmates outside the group. Only the killing blow earns five PvP points. Updated clients can share presence and show the full breakdown.
+
 ### Nearby KoS targets
 
 The **KoS Targets** box appears at the top centre when a living KoS player is detected locally through a nameplate, target, focus or mouseover in the open world. Click a head portrait to target that player; hover for their name and KoS reason. Portraits remain for 30 seconds after detection is lost. A guild sighting alone does not open the box.
@@ -113,3 +117,11 @@ Accepted fares appear in a compact bottom-right tracker, including while the bin
 ## 0.9.15 beta — KoS portrait targeting
 
 Adds the movable nearby KoS Targets box and fixes its portrait clicks for Forever’s regional two-part names: `/targetexact First Lastname` now uses a space instead of the identity separator dash. Realm-qualified names on other clients retain their dash. Offline regression checks cover both name modes and combat deferral; live Forever verification remains pending.
+
+## 0.9.16 beta — Personal KoS and guild kill reports
+
+Right-click the minimap icon for Menu, Personal KoS or Guild KoS. Personal KoS is private to your account, shared across characters on the same realm, holds 1,000 enemies and has no expiry. Search it by name, add a first and last name with a reason, view kill history, remove entries, or push a verified enemy to Guild KoS. Existing additions made by each of your characters are imported as those characters log in.
+
+Typed names remain unverified until a local living, visible open-world encounter supplies the matching player GUID. Encounters with unlisted enemies are remembered for this session. Proof attached to a personal entry survives reloads and is shared with your alts. An active Guild KoS entry also verifies the matching personal entry. A red [Guild KoS] badge beside its name shows current guild membership. Verification persists when the guild entry later expires or is removed. Portrait additions attempt both lists and report capacity or duplicate failures. Verified pushes can restore expired or removed guild entries, with earlier guild history and your characters’ private kills credited once. Private kills grant no points. Updated guild clients are needed to receive the new statistics-only history packets. Addon saves remain editable local data.
+
+Personal-only targets trigger your local sound, crosshair and nearby portrait box. Guild announcements and five-point rewards require an active Guild KoS entry. Existing combat restrictions and the 30-second nearby sighting grace still apply. Live testing in WoW Forever is still pending.

@@ -3,7 +3,9 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $root = Split-Path -Parent $PSScriptRoot
-if (-not $OutputPath) { $OutputPath = Join-Path $PSScriptRoot 'release\Gondor_PvP.zip' }
+$version = (Select-String -LiteralPath (Join-Path $root 'Gondor_PvP.toc') -Pattern '^## Version:\s*(.+)$').Matches.Groups[1].Value.Trim()
+if ($version -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$') { throw 'Missing or invalid TOC version.' }
+if (-not $OutputPath) { $OutputPath = Join-Path $PSScriptRoot "release\Gondor_PvP-$version.zip" }
 $parent = Split-Path -Parent $OutputPath
 New-Item -ItemType Directory -Force -Path $parent | Out-Null
 $toc = Join-Path $root 'Gondor_PvP.toc'

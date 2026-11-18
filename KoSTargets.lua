@@ -4,7 +4,10 @@ local T={seen={},plates={},dead={},serial=0,clock=0}
 GP.KoSTargets=T
 local safe=K.Safe
 local function combat() return safe(InCombatLockdown)==true end
-local function allowed() return GP.db and K.rows and GP.IsEligibleGuild() and not GP.Network.InInstance() end
+local function tracked(key)
+    return (GP.IsEligibleGuild() and K.Active(K.rows[key])) or (GP.PersonalKoS and GP.PersonalKoS.rows and GP.PersonalKoS.rows[key])
+end
+local function allowed() return GP.db and K.rows and not GP.Network.InInstance() end
 
 function T.TargetName(name)
     -- Forever exposes first/last names with a dash in unit identities, but
@@ -16,7 +19,7 @@ end
 
 function T.Observe(unit,live)
     local id=K.Identity(unit); local key=id and K.Name(id.name)
-    if not key or not K.Active(K.rows[key]) then return end
+    if not key or not tracked(key) then return end
     local death=id.guid and T.dead[id.guid]
     if death then
         if safe(UnitIsDeadOrGhost,unit)==true then death.corpse=true
@@ -33,7 +36,7 @@ function T.Observe(unit,live)
 end
 
 local function tooltip(b)
-    local r=b.entry; local record=r and K.rows[r.key]
+    local r=b.entry; local record=r and (K.rows[r.key] or (GP.PersonalKoS and GP.PersonalKoS.rows and GP.PersonalKoS.rows[r.key]))
     if not record or not GameTooltip then return end
     GameTooltip:SetOwner(b,'ANCHOR_BOTTOM')
     GameTooltip:AddLine(T.TargetName(r.name),1,.82,.45)
@@ -79,6 +82,13 @@ end
 function T.Render(list)
     if combat() or T.dragging then return end
     if #list==0 or T.dismissed then if T.box then T.box:Hide() end; return end
+    local signature={}
+    for _,r in ipairs(list) do signature[#signature+1]=r.key..'|'..r.name..'|'..tostring(r.detected) end
+    local position=GP.db.settings.kosTargetsPosition
+    if type(position)~='table' then position={} end
+    signature=table.concat(signature,';')..tostring(SetPortraitTexture)..tostring(position.x)..tostring(position.y)..UIParent:GetWidth()..'x'..UIParent:GetHeight()
+    if T.box and T.box:IsShown() and T.signature==signature then return end
+    T.signature=signature
     T.Build(); local f=T.box
     local width=math.max(160,12+math.min(10,#list)*36)
     f:SetSize(width,30+math.ceil(#list/10)*36); f.header:SetWidth(width-26)
@@ -119,9 +129,9 @@ function T.Refresh()
         for unit in pairs(T.plates) do units[#units+1]=unit end
         -- Also works on clients without nameplate enumeration, including login mid-encounter.
         if not plates then for i=1,40 do units[#units+1]='nameplate'..i end end
-        for _,unit in ipairs(units) do T.Observe(unit,live) end
+        for _,unit in ipairs(units) do if GP.PersonalKoS then GP.PersonalKoS.Observe(unit) end; T.Observe(unit,live) end
         for key,r in pairs(T.seen) do
-            if not K.Active(K.rows[key]) or T.clock-r.at>=30 then T.seen[key]=nil
+            if not tracked(key) or T.clock-r.at>=30 then T.seen[key]=nil
             else r.detected=live[key] or false end
         end
     else T.seen={}; T.plates={}; T.dead={} end

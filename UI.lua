@@ -235,7 +235,7 @@ function UI.Build()
     local horde=f:CreateTexture(nil,"ARTWORK"); horde:SetSize(100,50); horde:SetPoint("TOPRIGHT",-30,-7)
     horde:SetTexture("Interface\\AddOns\\Gondor_PvP\\Media\\Horde")
     UI.status = label(f, 12, 20, 52, 590, 28)
-    button(f, "Kill on Sight", 120, 635, 605, function() UI.ShowKoS() end)
+    button(f, "Guild KoS", 120, 635, 605, function() UI.ShowKoS() end)
     for i = 1, 8 do
         local card = CreateFrame("Button", nil, f, "BackdropTemplate")
         card:SetSize(164, 267); card:SetPoint("TOPLEFT", 36 + ((i-1)%4)*181, -(85 + math.floor((i-1)/4)*282))
@@ -255,7 +255,7 @@ function UI.Build()
     button(f, "Kill Share", 110, 180, 15, function() UI.ShowKillShare() end)
     button(f, "Settings", 110, 490, 15, function() UI.ToggleSettings() end)
     UI.points = button(f, "Points", 140, 320, 15, function() UI.ShowPoints() end)
-    local close=CreateFrame("Button",nil,f,"UIPanelCloseButton"); close:SetPoint("TOPRIGHT",-2,-2)
+    local close=CreateFrame("Button",nil,f,"UIPanelCloseButton"); f.close=close; close:SetPoint("TOPRIGHT",-2,-2); close:SetScript("OnClick",function() f:Hide() end)
     f:Hide()
 end
 
@@ -286,7 +286,7 @@ function UI.BuildMinimap()
     end
     b:SetScript("OnClick",function(_,mouse)
         if b.skipClick then b.skipClick=false; return end
-        if mouse=="RightButton" then UI.Toggle() else UI.ShowRequestMenu() end
+        if mouse=="RightButton" then UI.ShowMinimapOptions() else UI.ShowRequestMenu() end
     end)
     b:SetScript("OnDragStart",function() b.dragging=true end)
     b:SetScript("OnDragStop",function() b.dragging=false; b.skipClick=true; place() end)
@@ -300,7 +300,7 @@ function UI.BuildMinimap()
         end
     end)
     b:SetScript("OnEnter",function(self)
-        if GameTooltip then GameTooltip:SetOwner(self,"ANCHOR_LEFT"); GameTooltip:AddLine("Gondor PvP"); GameTooltip:AddLine("Left click: request help  |  Right click: binder"); GameTooltip:Show() end
+        if GameTooltip then GameTooltip:SetOwner(self,"ANCHOR_LEFT"); GameTooltip:AddLine("Gondor PvP"); GameTooltip:AddLine("Left click: request help  |  Right click: menu"); GameTooltip:Show() end
     end)
     b:SetScript("OnLeave",function() if GameTooltip then GameTooltip:Hide() end end)
     place()
@@ -593,13 +593,13 @@ local function kosWindow(name,w,h,title)
     drag:SetScript('OnDragStop',function() f:StopMovingOrSizing() end)
     if UISpecialFrames then table.insert(UISpecialFrames,name) end
     label(f,20,10,12,w-20,30):SetText(title)
-    local close=CreateFrame('Button',nil,f,'UIPanelCloseButton'); close:SetPoint('TOPRIGHT',-2,-2)
+    local close=CreateFrame('Button',nil,f,'UIPanelCloseButton'); f.close=close; close:SetPoint('TOPRIGHT',-2,-2); close:SetScript('OnClick',function() f:Hide() end)
     window(f); return f
 end
 function UI.EditKoS(identity)
-    if not identity or not GP.IsEligibleGuild() then return end
+    if not identity or (not GP.PersonalKoS and not GP.IsEligibleGuild()) then return end
     local K=GP.KoS; local key=K.Name(identity.name); if not key then return end
-    if K.Active(K.rows and K.rows[key]) then
+    if K.Active(K.rows and K.rows[key]) and not GP.PersonalKoS then
         if UI.kosEdit then UI.kosEdit:Hide() end
         UI.ShowKoSDetails(K.rows[key]); return
     end
@@ -615,7 +615,7 @@ function UI.EditKoS(identity)
         if raw~=text then self:SetText(text) end; counter:SetText(count..'/100 characters')
     end)
     local r=K.rows and K.rows[key]; edit:SetText(K.Active(r) and r.reason or '')
-    button(f,'Save',120,70,20,function() if K.Add(f.identity,edit:GetText()) then f:Hide(); UI.RefreshKoS(); UI.RefreshKoSPortraits() end end)
+    button(f,'Save',120,70,20,function() if (GP.PersonalKoS and GP.PersonalKoS.AddBoth or K.Add)(f.identity,edit:GetText()) then f:Hide(); UI.RefreshKoS(); UI.RefreshKoSPortraits() end end)
     button(f,'Cancel',120,270,20,function() f:Hide() end); f:Show(); edit:SetFocus()
 end
 function UI.DeleteKoS(r)
@@ -761,12 +761,25 @@ local function kosFit(f)
     local scale=math.min(1,(UIParent:GetWidth()-32)/f:GetWidth(),(UIParent:GetHeight()-32)/f:GetHeight())
     f:SetScale(math.max(.1,scale))
 end
-function UI.RefreshKoSDetails()
-    local f=UI.kosDetails; if not f or not f:IsShown() then return end
-    local r=GP.KoS.rows[f.key]
-    if not GP.IsEligibleGuild() or not GP.KoS.Active(r) or r.gen~=f.gen then f:Hide(); return end
-    f.player:SetText(UI.KoSPlayerName(r.key)); kosColour(f.player,r.class)
-    f.attributes:SetText('Race: '..(r.race and r.race~='' and r.race or 'Unknown')..'  |  Class: '..(r.class and r.class~='' and r.class or 'Unknown')..'\nLast seen level: '..((r.level or 0)>0 and r.level or 'Unknown')..'  |  Last seen: '..kosAge(r.seen))
+UI.KoSTable={Text=kosText,Panel=kosPanel,Age=kosAge,Colour=kosColour,Scroll=kosScroll,ScrollRange=kosScrollRange,Fit=kosFit,Window=window}
+function UI.RefreshKoSDetails(details)
+    local f=details or UI.kosDetails; if not f or not f:IsShown() then return end
+    local r
+    if f.personal then
+        local personal=GP.PersonalKoS.rows[f.key]
+        if not personal then f:Hide(); return end
+        local id=personal.identity or {}; local guild=GP.KoS.rows[f.key] or {}
+        r={key=personal.key,name=personal.name,reason=personal.reason or '',author=personal.author,
+            race=id.race and id.race~='' and id.race or guild.race,
+            class=id.class and id.class~='' and id.class or guild.class,
+            level=(id.level or 0)>0 and id.level or guild.level,
+            seen=personal.seen}
+    else
+        r=GP.KoS.rows[f.key]
+        if not GP.IsEligibleGuild() or not GP.KoS.Active(r) or r.gen~=f.gen then f:Hide(); return end
+    end
+    f.player:SetText(f.personal and r.name or UI.KoSPlayerName(r.key)); kosColour(f.player,r.class)
+    f.attributes:SetText('Race: '..(r.race and r.race~='' and r.race or 'Unknown')..'  |  Class: '..(r.class and r.class~='' and r.class or 'Unknown')..'\nLast seen level: '..((r.level or 0)>0 and r.level or 'Unknown')..'  |  Last seen: '..(r.seen and kosAge(r.seen) or 'Never'))
     f.reason:SetText(r.reason~='' and r.reason or 'No reason provided.')
     f.reason:SetHeight(200)
     local measured=f.reason.GetStringHeight and f.reason:GetStringHeight()
@@ -776,8 +789,9 @@ function UI.RefreshKoSDetails()
     local y=138+reasonHeight+26
     f.authorHeading:ClearAllPoints(); f.authorHeading:SetPoint('TOPLEFT',25,-y)
     f.author:ClearAllPoints(); f.author:SetPoint('TOPLEFT',25,-(y+18))
-    f.author:SetText(UI.KoSPlayerName(r.author)); kosMemberColour(f.author,r.author)
-    local total,players=GP.KoS.Stats(r)
+    f.author:SetText(r.author and UI.KoSPlayerName(r.author) or 'Unknown'); kosMemberColour(f.author,r.author)
+    local total,players
+    if f.personal then total,players=GP.PersonalKoS.Stats(f.key) else total,players=GP.KoS.Stats(r) end
     f.killTotal:ClearAllPoints(); f.killTotal:SetPoint('TOPLEFT',345,-(y+48)); f.killTotal:SetText('Total kills: '..total)
     f.killsHeading:ClearAllPoints(); f.killsHeading:SetPoint('TOPLEFT',25,-(y+48))
     local visible=math.max(1,math.min(6,#players))
@@ -795,13 +809,17 @@ function UI.RefreshKoSDetails()
     end
     panel.empty:SetShown(#players==0)
     f.range:ClearAllPoints(); f.range:SetPoint('TOPLEFT',25,-(y+80+panel:GetHeight()+3))
-    f.range:SetText(#players==0 and '0 guildmates' or (panel.offset+1)..'–'..math.min(#players,panel.offset+visible)..' of '..#players..' guildmates')
+    f.range:SetText(#players==0 and (f.personal and '0 characters' or '0 guildmates') or (panel.offset+1)..'–'..math.min(#players,panel.offset+visible)..' of '..#players..(f.personal and ' characters' or ' guildmates'))
     f:SetHeight(y+80+panel:GetHeight()+64); kosFit(f)
 end
-function UI.ShowKoSDetails(r)
-    if not GP.IsEligibleGuild() or not GP.KoS.Active(r) then return end
-    if not UI.kosDetails then
-        local f=kosWindow('GondorPvPKoSDetails',500,400,'KoS — TARGET DETAILS'); UI.kosDetails=f
+function UI.ShowKoSDetails(r,personal)
+    if personal then
+        if not GP.PersonalKoS.rows[r.key] then return end
+    elseif not GP.IsEligibleGuild() or not GP.KoS.Active(r) then return end
+    local slot=personal and 'personalHistory' or 'kosDetails'
+    if not UI[slot] then
+        local f=kosWindow(personal and 'GondorPvPPersonalHistory' or 'GondorPvPKoSDetails',500,400,personal and 'PERSONAL KoS — TARGET DETAILS' or 'KoS — TARGET DETAILS')
+        UI[slot]=f; f.personal=personal
         f.player=kosText(f,18,25,48,450,26)
         f.attributes=kosText(f,12,25,78,450,38); f.attributes:SetTextColor(.80,.84,.89)
         kosText(f,11,25,116,450,18,'REASON'):SetTextColor(1,.82,.45)
@@ -809,14 +827,14 @@ function UI.ShowKoSDetails(r)
         f.reasonBox:SetBackdropColor(.12,.13,.15,1)
         f.reason=kosText(f.reasonBox,13,10,8,430,40); f.reason:SetJustifyV('TOP')
         f.authorHeading=kosText(f,11,25,190,450,18,'ADDED BY'); f.authorHeading:SetTextColor(1,.82,.45)
-        f.killsHeading=kosText(f,12,25,220,310,24,'GUILD KILL BREAKDOWN'); f.killsHeading:SetTextColor(1,.82,.45)
+        f.killsHeading=kosText(f,12,25,220,310,24,personal and 'CHARACTER KILL BREAKDOWN' or 'GUILD KILL BREAKDOWN'); f.killsHeading:SetTextColor(1,.82,.45)
         f.author=kosText(f,12,25,190,450,22)
         f.killTotal=kosText(f,13,345,220,130,24,nil,'RIGHT')
         local panel=kosPanel(f,450,100,25,250); f.killPanel=panel; panel.rows={}
         -- Header labels belong to the header frame, above its opaque backdrop.
         local header=kosPanel(panel,448,30,1,1); panel.header=header
         header:SetBackdropColor(.22,.18,.12,1)
-        panel.guildmateHeading=kosText(header,12,9,4,330,22,'Guildmate')
+        panel.guildmateHeading=kosText(header,12,9,4,330,22,personal and 'Character' or 'Guildmate')
         panel.killsHeading=kosText(header,12,344,4,68,22,'Kills','RIGHT')
         panel.guildmateHeading:SetTextColor(1,.86,.58); panel.killsHeading:SetTextColor(1,.86,.58)
         panel.empty=kosText(panel,12,10,34,400,28,'No recorded kills.')
@@ -826,14 +844,14 @@ function UI.ShowKoSDetails(r)
             local shade=i%2==0 and .10 or .075; row:SetBackdropColor(shade,shade+.008,shade+.018,1)
             row.name=kosText(row,12,8,3,325,22); row.count=kosText(row,12,343,3,65,22,nil,'RIGHT')
         end
-        kosScroll(panel,'GondorPvPKoSKillScroll',UI.RefreshKoSDetails)
+        kosScroll(panel,personal and 'GondorPvPPersonalKillScroll' or 'GondorPvPKoSKillScroll',function() UI.RefreshKoSDetails(f) end)
         f.range=kosText(f,10,25,350,300,16); f.range:SetTextColor(.8,.84,.89)
         button(f,'Close',100,375,12,function() f:Hide() end)
-        f:SetScript('OnUpdate',function(_,elapsed) f.elapsed=(f.elapsed or 0)+elapsed; if f.elapsed>=1 then f.elapsed=0; UI.RefreshKoSDetails() end end)
+        f:SetScript('OnUpdate',function(_,elapsed) f.elapsed=(f.elapsed or 0)+elapsed; if f.elapsed>=1 then f.elapsed=0; UI.RefreshKoSDetails(f) end end)
     end
-    local f=UI.kosDetails
+    local f=UI[slot]
     if f.key~=r.key or f.gen~=r.gen then f.killPanel.offset=0 end
-    rosterClasses=nil; f.key=r.key; f.gen=r.gen; window(f); f:Show(); UI.RefreshKoSDetails()
+    rosterClasses=nil; f.key=r.key; f.gen=r.gen; window(f); f:Show(); UI.RefreshKoSDetails(f)
 end
 function UI.RefreshKoS()
     local f=UI.kosFrame; if not f or not GP.KoS.rows then return end
@@ -859,10 +877,36 @@ function UI.RefreshKoS()
     f.undo:SetShown(#K.UndoList()>0)
     kosFit(f); UI.RefreshKoSDetails()
 end
+local function reportLeaderboard()
+    if not GP.IsEligibleGuild() or not GP.KoSSync then return end
+    local lines={'[Gondor KoS] Kill Leaderboard — Top 5'}
+    for rank,entry in ipairs(GP.KoS.Leaderboard()) do
+        lines[#lines+1]=string.format('%d. %s — %d %s',rank,UI.KoSPlayerName(entry.name),
+            entry.count,entry.count==1 and 'kill' or 'kills')
+    end
+    if #lines==1 then lines[2]='No kills recorded for the current Guild KoS list.' end
+    GP.KoSSync.GuildReport('leaderboard',lines)
+end
+local function reportLatestKill()
+    if not GP.IsEligibleGuild() or not GP.KoSSync then return end
+    local entries,age=GP.KoS.LatestKills()
+    if not entries then GP.Print('The realm clock is unavailable. Cannot report today’s latest kill.'); return end
+    local lines={'[Gondor KoS] Latest Kill'}
+    local h,m,s=math.floor(age/3600),math.floor(age/60)%60,math.floor(age)%60
+    local elapsed=s..'s'
+    if h>0 then elapsed=string.format('%dh %dm %ds',h,m,s)
+    elseif m>0 then elapsed=string.format('%dm %ds',m,s) end
+    for _,entry in ipairs(entries) do
+        lines[#lines+1]=string.format('%s killed %s — %s ago — added by %s',UI.KoSPlayerName(entry.name),
+            UI.KoSPlayerName(entry.victim),elapsed,entry.author and UI.KoSPlayerName(entry.author) or 'Unknown')
+    end
+    if #lines==1 then lines[2]='No Guild KoS kills recorded today.' end
+    GP.KoSSync.GuildReport('latest',lines)
+end
 function UI.ShowKoS()
     if not GP.KoS.rows then GP.KoS.Init() end
     if not UI.kosFrame then
-        local f=kosWindow('GondorPvPKoSFrame',840,570,'GONDOR — KILL ON SIGHT'); UI.kosFrame=f; f.rows={}; f.headings={}
+        local f=kosWindow('GondorPvPKoSFrame',840,602,'GONDOR — KILL ON SIGHT'); UI.kosFrame=f; f.rows={}; f.headings={}
         local picture=art(f,220,391); picture:SetPoint('TOPLEFT',12,-90); picture:SetTexture(kosMedia..'KoSOrc'); picture:SetTexCoord(0,941/1024,0,1672/2048)
         f.status=label(f,12,20,48,800,28); f.status:SetTextColor(.85,.87,.9)
         local panel=kosPanel(f,580,400,245,94); f.listPanel=panel
@@ -903,10 +947,12 @@ function UI.ShowKoS()
         panel.empty=kosText(panel,13,15,170,520,50,'No players on the Kill on Sight list.','CENTER')
         kosScroll(panel,'GondorPvPKoSListScroll',UI.RefreshKoS); panel.scrollbar:SetHeight(320)
         f.range=kosText(f,11,250,499,540,20)
-        f.mute=button(f,'Sound: on',120,250,20,function() GP.db.settings.kosSound=not GP.db.settings.kosSound; UI.RefreshKoS() end)
-        f.undo=button(f,'Undo deletes',120,390,20,UI.ShowKoSUndo)
-        button(f,'Show nearby targets',170,525,20,function() if GP.KoSTargets then GP.KoSTargets.ShowNearby() end end)
-        button(f,'Close',100,710,20,function() f:Hide() end)
+        f.mute=button(f,'Sound: on',120,250,52,function() GP.db.settings.kosSound=not GP.db.settings.kosSound; UI.RefreshKoS() end)
+        f.undo=button(f,'Undo deletes',120,390,52,UI.ShowKoSUndo)
+        button(f,'Show nearby targets',170,525,52,function() if GP.KoSTargets then GP.KoSTargets.ShowNearby() end end)
+        button(f,'Close',100,710,52,function() f:Hide() end)
+        f.leaderboard=button(f,'Kill Leaderboard',160,250,20,reportLeaderboard)
+        f.latestKill=button(f,'Latest Kill',130,425,20,reportLatestKill)
         f:SetScript('OnUpdate',function(_,elapsed) f.elapsed=(f.elapsed or 0)+elapsed; if f.elapsed>=1 then f.elapsed=0; UI.RefreshKoS() end end)
     end
     UI.RefreshKoS(); window(UI.kosFrame); UI.kosFrame:Show()
@@ -926,7 +972,7 @@ function UI.RefreshKoSPortraits()
                 owner:HookScript('OnShow',function() UI.RefreshKoSPortraits() end)
             end
             if mark then local id=GP.KoS.Identity(spec[2]); local key=id and GP.KoS.Name(id.name)
-                mark:SetShown(GP.IsEligibleGuild() and owner:IsShown() and key and GP.KoS.Active(GP.KoS.rows[key]) or false)
+                mark:SetShown(owner:IsShown() and key and ((GP.IsEligibleGuild() and GP.KoS.Active(GP.KoS.rows[key])) or (GP.PersonalKoS and GP.PersonalKoS.rows and GP.PersonalKoS.rows[key]~=nil)) or false)
             end
         end
     end
@@ -935,7 +981,7 @@ function UI.InstallKoSMenu()
     if not UI.kosMenuInstalled and Menu and Menu.ModifyMenu then
         local function addEntry(_,root,context)
             local id=context and context.unit and GP.KoS.Identity(context.unit)
-            if id and GP.IsEligibleGuild() then root:CreateDivider(); root:CreateButton('Gondor KoS',function() UI.EditKoS(id) end) end
+            if id and (GP.PersonalKoS or GP.IsEligibleGuild()) then if GP.PersonalKoS then GP.PersonalKoS.Observe(context.unit) end; root:CreateDivider(); root:CreateButton('Gondor KoS',function() UI.EditKoS(id) end) end
         end
         -- SecureUnitButton's togglemenu action (used by Z-Perl) chooses
         -- PLAYER for a target and FOCUS for a focus, even for enemies.
