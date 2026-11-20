@@ -20,10 +20,22 @@ end
 function S.Member(sender)
     if not GP.IsEligibleGuild() then return end
     if not S.roster or S.clock>=(S.rosterAt or 0) then
-        S.roster={}; S.rosterAt=S.clock+15
+        S.roster={}; S.deleteAuthority=nil; S.rosterAt=S.clock+15
         local count=K.Safe(GetNumGuildMembers,true)
         if type(count)~='number' or count<0 or count>2000 then return end
-        for i=1,count do local n=K.Name(K.Safe(GetGuildRosterInfo,i)); if n then S.roster[n]=true end end
+        local matches=0
+        for i=1,count do
+            local data={pcall(GetGuildRosterInfo,i)}
+            if data[1] then
+                local n,guid=K.Name(data[2]),data[18]
+                if n then S.roster[n]=true end
+                if n==K.deleteOwner then
+                    matches=matches+1
+                    if not (issecretvalue and issecretvalue(guid)) and guid==K.deleteGUID then S.deleteAuthority=n end
+                end
+            end
+        end
+        if matches~=1 then S.deleteAuthority=nil end
     end
     local key=K.Name(sender); return key and S.roster[key] and key
 end
@@ -125,7 +137,19 @@ function S.Message(message,distribution,sender)
     if issecretvalue and (issecretvalue(message) or issecretvalue(distribution) or issecretvalue(sender)) then return end
     if type(message)~='string' or #message>240 or (distribution~='GUILD' and distribution~='WHISPER') then return end
     local peer=S.Member(sender); if not peer or peer==K.Own() or not K.rows then return end
-    if message:sub(1,2)=='Q|' and distribution=='GUILD' then
+    if message=='V' and distribution=='WHISPER' and K.CanDelete() then
+        S.transfers=S.transfers or {}
+        if S.transfers[peer] then return end
+        S.transfers[peer]=coroutine.create(function()
+            for _,r in pairs(K.rows) do
+                if r.deleted then
+                    while #S.queue>=512 do coroutine.yield() end
+                    record('L',r,fields,peer,2)
+                end
+            end
+        end)
+        S.PumpTransfers()
+    elseif message:sub(1,2)=='Q|' and distribution=='GUILD' then
         if message:sub(3)~=digest() then enqueue('O',peer,3) end
     elseif message=='O' and distribution=='WHISPER' and not S.requested then S.requested=peer; enqueue('F',peer,3)
     elseif message=='F' and distribution=='WHISPER' then
@@ -138,7 +162,7 @@ function S.Message(message,distribution,sender)
                 record(kind,r,keys,peer,3)
             end
             for _,r in pairs(K.rows) do
-                send('L',r,fields)
+                if not r.deleted or K.CanDelete() then send('L',r,fields) end
                 send('M',{key=r.key,gen=r.gen,seen=r.detailsAt or 0,race=r.race or '',
                     class=r.class or '',level=r.level or 0},detailFields)
             end
@@ -202,7 +226,7 @@ function S.Message(message,distribution,sender)
         elseif kind=='M' then r.seen=tonumber(r.seen); r.level=tonumber(r.level); K.MergeDetails(r)
         elseif kind=='L' then
             for _,f in ipairs({'added','seen','rev','alert','expired'}) do r[f]=tonumber(r[f]) end
-            r.deleted=r.deleted=='true'; K.Merge(r)
+            r.deleted=r.deleted=='true'; K.Merge(r,peer==S.deleteAuthority)
         else r.time=tonumber(r.time); K.Receipt(r) end
     end
 end
@@ -222,6 +246,13 @@ function S.Update(elapsed)
         return
     end
     if S.clock>=(S.nextQuery or math.huge) then S.nextQuery=S.clock+120; S.requested=nil; enqueue('Q|'..digest(),nil,3) end
+    if S.clock>=(S.nextDeleteQuery or 0) then
+        S.nextDeleteQuery=S.clock+30
+        if not K.CanDelete() and S.Member(K.deleteOwner) and S.deleteAuthority and GP.Comms.Online(K.deleteOwner)==true then
+            enqueue('V',K.deleteOwner,3)
+            S.nextDeleteQuery=S.clock+120
+        end
+    end
     for key,p in pairs(S.parts) do if S.clock>=p.expires then S.parts[key]=nil end end
     if S.clock>=(S.nextSend or 0) then
         S.nextSend=S.clock+0.5; local e=S.queue[1]

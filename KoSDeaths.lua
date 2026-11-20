@@ -49,7 +49,7 @@ local function index()
                 end
             end
             if not group then
-                group={id=r.id,victim=victim,time=r.time,listing=r.listing,author=r.author,
+                group={id=r.id,owner=r.reporter,victim=victim,time=r.time,listing=r.listing,author=r.author,
                     reporter=r.reporter,members={},reporters={}}
                 groups[#groups+1]=group
             end
@@ -65,6 +65,12 @@ end
 function D.Each(victim,visit)
     if not K.store then return end
     for _,r in ipairs(index()[victim] or {}) do visit(r) end
+end
+
+function D.EachDeath(visit)
+    for _,rows in pairs(index()) do
+        for _,r in ipairs(rows) do visit(r) end
+    end
 end
 
 function D.EachReward(visit)
@@ -203,7 +209,7 @@ end
 
 function D.PrintStatus()
     local metadata=C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
-    local version=safe(metadata,'Gondor_PvP','Version') or '0.9.18-beta'
+    local version=safe(metadata,'Gondor_PvP','Version') or '0.9.21-beta'
     local registered={}
     for _,event in ipairs({'UNIT_DIED','PARTY_KILL','UNIT_HEALTH','UNIT_FLAGS'}) do
         if D.events[event] then registered[#registered+1]=event end

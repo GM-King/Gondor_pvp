@@ -16,7 +16,24 @@ end
 GP.Comms={blocked={},recent={},offline={}}
 local C=GP.Comms
 local function clock() return (GetServerTime and GetServerTime()) or time() end
-local function identity(name) return type(name)=="string" and name:lower():gsub("%s+","") end
+function GP.RegionalNames()
+    local ok,value=pcall(RegionalUniqueNamesEnabled)
+    return ok and not (issecretvalue and issecretvalue(value)) and value==true
+end
+function GP.PlayerKey(name)
+    if (issecretvalue and issecretvalue(name)) or type(name)~="string" then return end
+    if GP.RegionalNames() then
+        local part,suffix=name:match("^(.*)%-([^%-]+)$")
+        for _,fn in ipairs({GetNormalizedRealmName or false,GetRealmName or false}) do
+            local ok,realm=pcall(fn)
+            if ok and not (issecretvalue and issecretvalue(realm)) and type(realm)=="string"
+                and suffix and suffix:lower()==realm:lower() then name=part; break end
+        end
+        name=name:gsub("^ *([^ ]+) +([^ ]+) *$","%1-%2")
+    end
+    return (name:gsub("[A-Z]",string.lower):gsub("[ \t\r\n]+",""))
+end
+local identity=GP.PlayerKey
 function C.Online(target)
     if not GP.IsEligibleGuild() or not GetNumGuildMembers or not GetGuildRosterInfo then return end
     local ok,count=pcall(GetNumGuildMembers,true)
@@ -125,6 +142,8 @@ function GP.Initialize()
     if type(db.pendingCards) ~= "table" then db.pendingCards = {} end
     if type(db.receipts) ~= "table" then db.receipts = {} end
     if type(db.pairs) ~= "table" then db.pairs = {} end
+    if type(db.fareResults) ~= "table" then db.fareResults = {} end
+    if type(db.fareSettlements) ~= "table" then db.fareSettlements = {} end
     if type(db.cancelOutbox) ~= "table" then db.cancelOutbox = {} end
     for name,stamp in pairs(db.pairs) do
         if type(name)~="string" or type(stamp)~="number" or stamp~=stamp or stamp<0 or stamp>4102444800 then

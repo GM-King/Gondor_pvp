@@ -96,7 +96,11 @@ function UI.RefreshPersonalKoS()
 end
 
 function UI.ShowPersonalKoS()
-    if not P.rows then P.Init() end
+    if not P.rows then
+        if not K.rows and not K.Init() then return end
+        P.Init()
+        if not P.rows then return end
+    end
     if not UI.personalKoS then
         local f=frame('GondorPvPPersonalKoSFrame',730,660,'PERSONAL KoS — shared across your characters'); UI.personalKoS=f; f.rows={}; f.headings={}
         text(f,'Search',14,44,60); f.search=edit(f,80,44,280)
@@ -162,7 +166,7 @@ function UI.ShowPersonalKoS()
                     confirm=frame('GondorPvPPersonalConfirm',400,140,'Remove from Personal KoS?'); UI.personalConfirm=confirm
                     confirm.caption=text(confirm,'',15,45,370)
                     button(confirm,'Remove',30,90,130,function()
-                        if P.rows[confirm.key] then P.rows[confirm.key]=nil; P.count=P.count-1; P.revision=P.revision+1 end
+                        P.Remove(confirm.key)
                         confirm:Hide(); UI.RefreshPersonalKoS()
                     end)
                     button(confirm,'Cancel',230,90,130,function() confirm:Hide() end)

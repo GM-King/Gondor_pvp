@@ -165,6 +165,7 @@ function UI.OnEvent(event)
             UI.offer:Hide()
         end
     elseif event=="PLAYER_REGEN_ENABLED" then UI.combat=nil end
+    if event=="PLAYER_REGEN_DISABLED" or event=="PLAYER_REGEN_ENABLED" then UI.RefreshTracker() end
     UI.RefreshPlacement()
     if event=="PLAYER_REGEN_ENABLED" then GP.Cards.Refresh(); UI.ShowNextAward(); UI.ShowNextOffer() end
 end
@@ -621,6 +622,7 @@ function UI.EditKoS(identity)
     button(f,'Cancel',120,270,20,function() f:Hide() end); f:Show(); edit:SetFocus()
 end
 function UI.DeleteKoS(r)
+    if not GP.KoS.CanDelete() then return end
     if UI.kosConfirm then UI.kosConfirm:Hide() end
     local f=UI.kosConfirm
     if f then f.key=r.key; f.gen=r.gen; f.target:SetText(r.key); f:Show(); window(f); return end
@@ -918,14 +920,18 @@ function UI.ShowKoSDetails(r,personal)
     rosterClasses=nil; f.key=r.key; f.gen=r.gen; window(f); f:Show(); UI.RefreshKoSDetails(f)
 end
 function UI.RefreshKoS()
-    local f=UI.kosFrame; if not f or not GP.KoS.rows then return end
-    local K=GP.KoS; local list=GP.IsEligibleGuild() and K.List() or {}; local count=#list
+    local f=UI.kosFrame; if not f or not GP.db then return end
+    local K=GP.KoS
+    local ready=K.rows~=nil
+    local list=ready and GP.IsEligibleGuild() and K.List() or {}; local count=#list
     local panel=f.listPanel; kosScrollRange(panel,count,10)
-    f.status:SetText('All Alliance on this list are kill on sight by order of the Doctor of War.')
+    f.status:SetText(ready and 'All Alliance on this list are kill on sight by order of the Doctor of War.'
+        or 'Loading Guild KoS. Waiting for realm and time information from the game.')
     for i,row in ipairs(f.rows) do
         local r=list[i+panel.offset]; row.record=r
         if r then
             row.name:SetText(UI.KoSPlayerName(r.key)); kosColour(row.name,r.class)
+            row.delete:SetShown(K.CanDelete())
             row.level:SetText((r.level or 0)>0 and tostring(r.level) or '?')
             row.seen:SetText(kosAge(r.seen)); row.kills:SetText(tostring(K.Stats(r))); row:Show()
         else row:Hide() end
@@ -935,21 +941,214 @@ function UI.RefreshKoS()
         h.arrow:SetShown(active)
         if active then h.arrow:SetTexCoord(0,1,GP.db.settings.kosSortAscending and 1 or 0,GP.db.settings.kosSortAscending and 0 or 1) end
     end
-    panel.empty:SetShown(count==0)
-    f.range:SetText(count==0 and '0 targets' or (panel.offset+1)..'–'..math.min(count,panel.offset+10)..' of '..count..' targets')
+    panel.empty:SetShown(ready and count==0)
+    f.range:SetText(ready and (count==0 and '0 targets' or (panel.offset+1)..'–'..math.min(count,panel.offset+10)..' of '..count..' targets') or '')
+    f.leaderboard:SetEnabled(ready)
+    f.latestKill:SetEnabled(ready)
     f.mute:SetText(GP.db.settings.kosSound and 'Sound: on' or 'Sound: off')
-    f.undo:SetShown(#K.UndoList()>0)
+    f.undo:SetShown(ready and #K.UndoList()>0)
     kosFit(f); UI.RefreshKoSDetails()
 end
+local leaderboardColumns={
+    {label='Rank',key='rank',x=8,width=53,align='CENTER',ascending=true},
+    {label='Player',key='name',x=70,width=200,align='LEFT',ascending=true},
+    {label='Last victim',key='lastVictim',x=278,width=188,align='LEFT',ascending=true},
+    {label='Time since last kill',key='lastKillAt',x=476,width=121,align='CENTER',ascending=false},
+    {label='Total kills',key='count',x=611,width=75,align='RIGHT',ascending=false},
+}
 local function reportLeaderboard()
     if not GP.IsEligibleGuild() or not GP.KoSSync then return end
     local lines={'[Gondor KoS] Kill Leaderboard — Top 5'}
-    for rank,entry in ipairs(GP.KoS.Leaderboard()) do
+    local entries=GP.KoS.Leaderboard()
+    for rank=1,math.min(5,#entries) do
+        local entry=entries[rank]
         lines[#lines+1]=string.format('%d. %s — %d %s',rank,UI.KoSPlayerName(entry.name),
             entry.count,entry.count==1 and 'kill' or 'kills')
     end
-    if #lines==1 then lines[2]='No kills recorded for the current Guild KoS list.' end
+    if #lines==1 then lines[2]='No Guild KoS kills recorded.' end
     GP.KoSSync.GuildReport('leaderboard',lines)
+end
+
+local function refreshLeaderboardPlayer()
+    local f=UI.kosLeaderboardPlayer
+    if not f or not f:IsShown() then return end
+    if not GP.IsEligibleGuild() then f:Hide(); return end
+    local entry
+    for _,ranked in ipairs(GP.KoS.Leaderboard()) do
+        if ranked.name==f.player then entry=ranked; break end
+    end
+    if not entry then f:Hide(); return end
+    if f.entry~=entry then
+        f.entry=entry
+        local kills,victims={},{}
+        local distinct=0
+        for _,kill in ipairs(entry.kills) do
+            kills[#kills+1]=kill
+            if not victims[kill.victim] then victims[kill.victim]=true; distinct=distinct+1 end
+        end
+        table.sort(kills,function(a,b)
+            if a.time~=b.time then return a.time>b.time end
+            if a.victim~=b.victim then return a.victim<b.victim end
+            return a.id<b.id
+        end)
+        f.history=kills
+        f.name:SetText(UI.KoSPlayerName(entry.name))
+        kosMemberColour(f.name,entry.name)
+        f.summary:SetText(string.format('Rank #%d    •    %d total kills    •    %d unique victims',entry.rank,entry.count,distinct))
+    end
+    local panel=f.listPanel
+    kosScrollRange(panel,#f.history,#f.rows)
+    for i,row in ipairs(f.rows) do
+        local kill=f.history[panel.offset+i]
+        row:SetShown(kill~=nil)
+        if kill then
+            row.victim:SetText(UI.KoSPlayerName(kill.victim))
+            row.age:SetText(kosAge(kill.time))
+        end
+    end
+    kosFit(f)
+end
+
+local function showLeaderboardPlayer(entry)
+    if not UI.kosLeaderboardPlayer then
+        local f=kosWindow('GondorPvPKoSLeaderboardPlayer',555,457,'GUILD KoS PLAYER STATS')
+        UI.kosLeaderboardPlayer=f
+        f.name=kosText(f,18,20,53,510,29)
+        f.summary=kosText(f,13,20,86,510,24)
+        local panel=kosPanel(f,515,329,20,115); f.listPanel=panel
+        local header=kosPanel(panel,513,32,1,1); header:SetBackdropColor(.22,.18,.12,1)
+        kosText(header,11,10,3,300,24,'Victim')
+        kosText(header,11,315,3,160,24,'Time since kill','RIGHT')
+        f.rows={}
+        for i=1,8 do
+            local row=kosPanel(panel,485,36,2,34+(i-1)*36)
+            row:SetBackdropBorderColor(0,0,0,0)
+            local shade=i%2==0 and .10 or .075
+            row:SetBackdropColor(shade,shade+.008,shade+.018,1)
+            row.victim=kosText(row,12,9,6,300,24)
+            row.age=kosText(row,12,314,6,160,24,nil,'RIGHT')
+            f.rows[i]=row
+        end
+        kosScroll(panel,'GondorPvPKoSLeaderboardPlayerScroll',refreshLeaderboardPlayer)
+        panel.scrollbar:SetHeight(250)
+        f:SetScript('OnUpdate',function(_,elapsed)
+            f.elapsed=(f.elapsed or 0)+elapsed
+            if f.elapsed>=1 then f.elapsed=0; refreshLeaderboardPlayer() end
+        end)
+    end
+    local f=UI.kosLeaderboardPlayer
+    f.player=entry.name
+    f.listPanel.offset=0
+    window(f); f:Show()
+    refreshLeaderboardPlayer()
+end
+
+function UI.RefreshKoSLeaderboard()
+    local f=UI.kosLeaderboard
+    if not f or not f:IsShown() then return end
+    local eligible=GP.IsEligibleGuild()
+    local ranked=eligible and GP.KoS.Leaderboard() or nil
+    if f.ranked~=ranked or not f.entries then
+        f.ranked=ranked
+        f.entries={}
+        for _,entry in ipairs(ranked or {}) do f.entries[#f.entries+1]=entry end
+        local field,ascending=f.sort,f.ascending
+        table.sort(f.entries,function(a,b)
+            if a[field]==b[field] then return a.rank<b.rank end
+            if ascending then return a[field]<b[field] end
+            return a[field]>b[field]
+        end)
+    end
+    local entries=f.entries
+    local panel=f.listPanel
+    kosScrollRange(panel,#entries,#f.rows)
+    for i,row in ipairs(f.rows) do
+        local entry=entries[i+panel.offset]
+        row.entry=entry
+        row:SetShown(entry~=nil)
+        if entry then
+            row.cells[1]:SetText(tostring(entry.rank))
+            row.cells[2]:SetText(UI.KoSPlayerName(entry.name))
+            kosMemberColour(row.cells[2],entry.name)
+            row.cells[3]:SetText(UI.KoSPlayerName(entry.lastVictim))
+            row.cells[4]:SetText(kosAge(entry.lastKillAt))
+            row.cells[5]:SetText(tostring(entry.count))
+        end
+    end
+    for key,arrow in pairs(f.sortArrows) do
+        arrow:SetShown(key==f.sort)
+        if key==f.sort then arrow:SetTexCoord(0,1,f.ascending and 1 or 0,f.ascending and 0 or 1) end
+    end
+    f.announce:SetEnabled(eligible)
+    panel.empty:SetShown(#entries==0)
+    kosFit(f)
+end
+
+function UI.ShowKoSLeaderboard()
+    if not GP.IsEligibleGuild() or not GP.KoS.rows then return end
+    if not UI.kosLeaderboard then
+        local f=kosWindow('GondorPvPKoSLeaderboard',760,635,'GONDOR — KILL LEADERBOARD')
+        UI.kosLeaderboard=f; f.rows={}; f.sortArrows={}
+        f.sort='rank'; f.ascending=true
+        local trophies=art(f,192,128)
+        trophies:SetPoint('TOP',0,-45)
+        trophies:SetTexture(kosMedia..'KoSTrophyTrio')
+        trophies:SetTexCoord(0,768/1024,0,1)
+        trophies:SetBlendMode('BLEND')
+        f.trophies=trophies
+        local panel=kosPanel(f,722,397,19,184); f.listPanel=panel
+        local header=kosPanel(panel,720,32,1,1); header:SetBackdropColor(.22,.18,.12,1)
+        f.headers={}
+        for _,column in ipairs(leaderboardColumns) do
+            local key=column.key
+            local heading=CreateFrame('Button',nil,header)
+            heading:SetPoint('TOPLEFT',column.x,-2)
+            heading:SetSize(column.width,28)
+            kosText(heading,11,0,1,column.width-10,24,column.label,column.align)
+            local arrow=heading:CreateTexture(nil,'OVERLAY')
+            arrow:SetSize(8,8); arrow:SetPoint('RIGHT',0,0)
+            arrow:SetTexture('Interface\\Buttons\\UI-SortArrow')
+            f.headers[key]=heading
+            f.sortArrows[key]=arrow
+            heading:SetScript('OnClick',function()
+                if f.sort==key then f.ascending=not f.ascending
+                else f.sort=key; f.ascending=column.ascending end
+                f.entries=nil
+                panel.offset=0
+                UI.RefreshKoSLeaderboard()
+            end)
+        end
+        for i=1,10 do
+            local row=kosPanel(panel,695,36,2,34+(i-1)*36)
+            row:SetBackdropBorderColor(0,0,0,0)
+            local shade=i%2==0 and .10 or .075
+            row:SetBackdropColor(shade,shade+.008,shade+.018,1)
+            local player=CreateFrame('Button',nil,row)
+            player:SetAllPoints(row)
+            if player.SetHighlightTexture then player:SetHighlightTexture('Interface\\QuestFrame\\UI-QuestTitleHighlight') end
+            player:SetScript('OnClick',function() if row.entry then showLeaderboardPlayer(row.entry) end end)
+            row.player=player
+            row.cells={}
+            for j,column in ipairs(leaderboardColumns) do
+                local cell=kosText(player,12,column.x-1,6,column.width,24,nil,column.align)
+                if cell.SetWordWrap then cell:SetWordWrap(false) end
+                row.cells[j]=cell
+            end
+            f.rows[i]=row
+        end
+        panel.empty=kosText(panel,13,15,155,680,50,'No Guild KoS kills recorded.','CENTER')
+        kosScroll(panel,'GondorPvPKoSLeaderboardScroll',UI.RefreshKoSLeaderboard)
+        panel.scrollbar:SetHeight(320)
+        f.announce=button(f,'Announce to Guild',180,19,13,reportLeaderboard)
+        f:SetScript('OnUpdate',function(_,elapsed)
+            f.elapsed=(f.elapsed or 0)+elapsed
+            if f.elapsed>=1 then f.elapsed=0; UI.RefreshKoSLeaderboard() end
+        end)
+    end
+    local f=UI.kosLeaderboard
+    window(f)
+    f:Show()
+    UI.RefreshKoSLeaderboard()
 end
 local function reportLatestKill()
     if not GP.IsEligibleGuild() or not GP.KoSSync then return end
@@ -1015,7 +1214,7 @@ function UI.ShowKoS()
         f.undo=button(f,'Undo deletes',180,440,52,UI.ShowKoSUndo)
         button(f,'Show nearby targets',180,630,52,function() if GP.KoSTargets then GP.KoSTargets.ShowNearby() end end)
         button(f,'Close',180,630,20,function() f:Hide() end)
-        f.leaderboard=button(f,'Kill Leaderboard',180,250,20,reportLeaderboard)
+        f.leaderboard=button(f,'Kill Leaderboard',180,250,20,UI.ShowKoSLeaderboard)
         f.latestKill=button(f,'Latest Kill',180,440,20,reportLatestKill)
         f:SetScript('OnUpdate',function(_,elapsed) f.elapsed=(f.elapsed or 0)+elapsed; if f.elapsed>=1 then f.elapsed=0; UI.RefreshKoS() end end)
     end
@@ -1070,12 +1269,31 @@ function UI.RefreshOfferDistance()
     f.detail:SetText(string.format('%s — %s %s\n%s (%.1f, %.1f)\n%s\nPotential reward: %s PvP Points',GP.DisplayName(offer.sender),offer.race or 'Unknown',offer.class or 'Unknown',f.zone or 'Unknown',offer.x*100,offer.y*100,UI.DistanceText(map,x,y,offer.map,offer.x,offer.y),offer.quote and tostring(offer.quote) or 'unavailable'))
 end
 function UI.RefreshTracker()
-    local n=GP.Network; local entries={}; local map,x,y=GP.Map.Position()
+    if not GP.db or not GP.Map or not GP.Network then return end
+    if UI.InCombat() then
+        if UI.tracker then
+            if UI.tracker.dragging then UI.tracker:StopMovingOrSizing(); UI.tracker.dragging=false end
+            UI.tracker:Hide()
+        end
+        return
+    end
+    local n=GP.Network; local entries={}
+    for id,result in pairs(GP.db.fareResults or {}) do
+        if type(result)=='table' and type(result.helper)=='string' and type(result.amount)=='number' and type(result.time)=='number' then
+            entries[#entries+1]={resultID=id,time=result.time,text='Fare fulfilled — '..UI.KoSPlayerName(result.helper)
+                ..'\n'..result.amount..' PvP Points awarded'}
+        end
+    end
+    table.sort(entries,function(a,b)
+        if a.time~=b.time then return a.time<b.time end
+        return a.resultID<b.resultID
+    end)
+    local map,x,y=GP.Map.Position()
     local a=n.active
     if a then entries[#entries+1]={role='H',id=a.id,revision=a.revision,requester=a.requester,text='Helping '..GP.DisplayName(a.requester)..' (you accepted)\n'..(not a.acceptedAt and 'Awaiting acceptance acknowledgement' or (not a.positionAt or now()-a.positionAt>10) and 'Updating location...' or UI.DistanceText(map,x,y,a.map,a.x,a.y))} end
     local r=n.request
     if r then
-        if UnitIsDeadOrGhost and UnitIsDeadOrGhost('player') then map,x,y=r.map,r.x,r.y end
+        if GP.KoS and GP.KoS.Safe(UnitIsDeadOrGhost,'player')==true then map,x,y=r.map,r.x,r.y end
         local helpers={}; for key,h in pairs(r.helpers) do helpers[#helpers+1]={key=key,h=h} end
         table.sort(helpers,function(a,b) return a.key<b.key end)
         for _,v in ipairs(helpers) do
@@ -1089,7 +1307,7 @@ function UI.RefreshTracker()
         f:SetWidth(300); f:SetFrameStrata('MEDIUM'); f:SetClampedToScreen(true); f:SetMovable(true); f:EnableMouse(true)
         f:SetBackdrop({bgFile='Interface\\Buttons\\WHITE8X8',edgeFile='Interface\\Buttons\\WHITE8X8',edgeSize=1}); f:SetBackdropColor(.1,.03,.03,.92)
         local header=CreateFrame('Button',nil,f); header:SetSize(300,24); header:SetPoint('TOP'); header:RegisterForDrag('LeftButton')
-        label(header,12,6,2,288,20):SetText('GONDOR — ACTIVE FARES (drag)')
+        label(header,12,6,2,288,20):SetText('GONDOR — KILL SHARE (drag)')
         header:SetScript('OnDragStart',function() f.dragging=true; f:StartMoving() end)
         header:SetScript('OnDragStop',function()
             f:StopMovingOrSizing(); f.dragging=false
@@ -1099,20 +1317,34 @@ function UI.RefreshTracker()
         for i=1,5 do
             local row=CreateFrame('Frame',nil,f); row:SetSize(290,48); row:SetPoint('TOPLEFT',5,-24-(i-1)*48)
             row.text=label(row,11,3,3,250,43); row.text:SetJustifyH('LEFT')
+            local function dismiss()
+                GP.db.fareResults[row.entry.resultID]=nil
+                UI.RefreshTracker()
+            end
+            row.ok=button(row,'OK',40,216,12,dismiss)
             row.cancel=button(row,'X',24,263,12,function()
                 local e=row.entry; if not e then return end
+                if e.resultID then dismiss(); return end
                 if e.role=='R' then n.CancelHelper(e.id,e.key,e.revision)
                 elseif n.active and n.active.id==e.id and n.active.requester==e.requester and n.active.revision==e.revision then n.CancelFare() end
                 UI.RefreshTracker()
             end)
-            row.cancel:SetScript('OnEnter',function(self) if GameTooltip then GameTooltip:SetOwner(self,'ANCHOR_LEFT'); GameTooltip:AddLine('Cancel this fare'); GameTooltip:Show() end end)
+            row.cancel:SetScript('OnEnter',function(self) if GameTooltip then GameTooltip:SetOwner(self,'ANCHOR_LEFT'); GameTooltip:AddLine(row.entry and row.entry.resultID and 'Dismiss this result' or 'Cancel this fare'); GameTooltip:Show() end end)
             row.cancel:SetScript('OnLeave',function() if GameTooltip then GameTooltip:Hide() end end)
             f.rows[i]=row
         end
         f:EnableMouseWheel(true); f:SetScript('OnMouseWheel',function(_,delta) f.offset=(f.offset or 0)-delta; UI.RefreshTracker() end)
     end
     local f=UI.tracker; f:SetHeight(24+math.min(5,#entries)*48); f.offset=math.max(0,math.min(f.offset or 0,math.max(0,#entries-5)))
-    for i,row in ipairs(f.rows) do local e=entries[i+f.offset]; row.entry=e; row:SetShown(e~=nil); if e then row.text:SetText(e.text); row.cancel:SetShown(not e.completed) end end
+    for i,row in ipairs(f.rows) do
+        local e=entries[i+f.offset]; row.entry=e; row:SetShown(e~=nil)
+        if e then
+            row.text:SetText(e.text)
+            row.text:SetWidth(e.resultID and 211 or 250)
+            row.ok:SetShown(e.resultID~=nil)
+            row.cancel:SetShown(not e.completed)
+        end
+    end
     if not f.dragging then
         f:ClearAllPoints(); local p=GP.db.settings.trackerPosition
         if type(p)=='table' and type(p.x)=='number' and type(p.y)=='number' then f:SetPoint('CENTER',UIParent,'BOTTOMLEFT',math.max(150,math.min(UIParent:GetWidth()-150,p.x*UIParent:GetWidth())),math.max(f:GetHeight()/2,math.min(UIParent:GetHeight()-f:GetHeight()/2,p.y*UIParent:GetHeight()))) else f:SetPoint('BOTTOMRIGHT',UIParent,'BOTTOMRIGHT',-40,30) end

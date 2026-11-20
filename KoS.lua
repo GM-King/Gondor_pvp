@@ -8,17 +8,86 @@ function K.Safe(fn,...)
     if ok and not (issecretvalue and (issecretvalue(a) or issecretvalue(b))) then return a,b end
 end
 local safe=K.Safe
-function K.Now() return safe(GetServerTime) or safe(time) or 0 end
+local function validTime(value)
+    return type(value)=='number' and value==value and value>0 and value<=4102444800
+end
+local function clock()
+    if type(GetServerTime)~='function' then
+        local value=safe(time)
+        return validTime(value) and value or nil
+    end
+    local server=safe(GetServerTime)
+    if validTime(server) then return server end
+    local localTime=safe(time)
+    -- WoW's time() returns Unix seconds. Ignore startup sentinels and uptime.
+    if validTime(localTime) and localTime>=1577836800 then return localTime end
+end
+function K.Now()
+    local value=clock()
+    if value and value>=(K.lastTime or 0)-60 then K.lastTime=value end
+    return K.lastTime or 0
+end
+function K.Realm()
+    local function valid(value)
+        return type(value)=='string' and value:find('[^ \t]') and value:lower()~='unknown'
+    end
+    local normalized=safe(GetNormalizedRealmName)
+    if valid(normalized) then return normalized end
+    local raw=safe(GetRealmName)
+    if valid(raw) then
+        local scope=GP.guildName:lower()..'@'..raw
+        if type(GetNormalizedRealmName)~='function'
+            or (type(GondorPvPKoS)=='table' and type(GondorPvPKoS[scope])=='table')
+            or (type(GondorPvPPersonalKoS)=='table' and type(GondorPvPPersonalKoS[raw])=='table') then return raw end
+    end
+    -- Forever sometimes returns an empty realm name for this shard.
+    -- Its player GUID still identifies the scope used by existing saves.
+    local guid=safe(UnitGUID,'player')
+    if type(guid)=='string' and guid:match('^Player%-6801%-[%x]+$') then return 'CAMWOWAU1Realm2PvP' end
+end
+local function copy(value)
+    if type(value)~='table' then return value end
+    local result={}
+    for key,item in pairs(value) do result[key]=copy(item) end
+    return result
+end
+function K.Restore(scope,store,fields)
+    local snapshot=type(GondorPvPKoSRecovery)=='table' and GondorPvPKoSRecovery[scope]
+    if type(snapshot)~='table' then return end
+    for _,field in ipairs(fields) do
+        local saved=snapshot[field]
+        if type(saved)=='table' and (type(store[field])~='table' or (not next(store[field]) and next(saved))) then
+            store[field]=copy(saved)
+        end
+    end
+end
+function K.SaveSnapshot(scope,store,fields)
+    if not store then return end
+    if type(GondorPvPKoSRecovery)~='table' then GondorPvPKoSRecovery={} end
+    local snapshot={}
+    for _,field in ipairs(fields) do snapshot[field]=copy(store[field]) end
+    GondorPvPKoSRecovery[scope]=snapshot
+end
+local guildFields={'rows','backups','listings','attribution','killAuthors','killMembers','historyTargets','statistics','deathObservations'}
+function K.NameKey(name)
+    return (name:gsub('[A-Z]',string.lower):gsub('[ \t\r\n]+',''))
+end
+K.deleteOwner='garry-oak'
+K.deleteGUID='Player-6801-000133F8'
+function K.CanDelete()
+    return GP.IsEligibleGuild() and K.Own()==K.deleteOwner and safe(UnitGUID,'player')==K.deleteGUID
+end
 function K.Name(name)
     if issecretvalue and issecretvalue(name) then return end
     if type(name)~='string' or name=='' or #name>100 or name:find('[~|%c]') then return end
-    if not name:find('-',1,true) then
-        if safe(RegionalUniqueNamesEnabled)==true then
-            name=name:gsub('^%s*([^%s]+)%s+([^%s]+)%s*$','%1-%2')
-        end
-        if not name:find('-',1,true) then name=name..'-'..(safe(GetNormalizedRealmName) or safe(GetRealmName) or '') end
+    if safe(RegionalUniqueNamesEnabled)==true then
+        local realm=K.Realm()
+        local identity,suffix=name:match('^(.*)%-([^%-]+)$')
+        if realm and suffix and K.NameKey(suffix)==K.NameKey(realm) then name=identity end
+        name=name:gsub('^ *([^ ]+) +([^ ]+) *$','%1-%2')
     end
-    local key=name:lower():gsub('%s+',''); return key
+    if not name:find('-',1,true) then name=name..'-'..(K.Realm() or '') end
+    return K.NameKey(name)
 end
 local function unitName(unit)
     local n,r=safe(UnitName,unit); if type(n)~='string' then return end
@@ -37,25 +106,41 @@ function K.Reason(s)
     return s:sub(1,stop),math.min(n,100)
 end
 function K.Init()
+    if not GP.db then return false end
+    local realm=K.Realm()
+    if not realm or not clock() then return false end
     K.statsCache={}
+    K.leaderboardCache=nil
     K.statsRevision=(K.statsRevision or 0)+1
-    if not GP.db then return end
     if type(GondorPvPKoS)~='table' then GondorPvPKoS={} end
-    local scope=GP.guildName:lower()..'@'..(safe(GetNormalizedRealmName) or safe(GetRealmName) or 'unknown')
-    if type(GondorPvPKoS[scope])~='table' then GondorPvPKoS[scope]={rows={},backups={}} end
-    K.store=GondorPvPKoS[scope]; if type(K.store.rows)~='table' then K.store.rows={} end; if type(K.store.backups)~='table' then K.store.backups={} end
-    K.store.listings=K.store.listings or {}; K.store.attribution=K.store.attribution or {}
-    if type(K.store.killAuthors)~='table' then K.store.killAuthors={} end
-    if type(K.store.killMembers)~='table' then K.store.killMembers={} end
-    local saved=K.store.rows; K.store.rows={}; K.rows=K.store.rows
-    for _,r in pairs(saved) do pcall(K.Merge,r) end
+    local scope=GP.guildName:lower()..'@'..realm
+    if type(GondorPvPKoS[scope])~='table' then GondorPvPKoS[scope]={} end
+    K.scope=scope
+    K.realm=realm
+    K.store=GondorPvPKoS[scope]
+    K.Restore(K.scope,K.store,guildFields)
+    for _,field in ipairs(guildFields) do
+        if type(K.store[field])~='table' then K.store[field]={} end
+    end
+    K.rows=K.store.rows
+    for key,row in pairs(K.rows) do
+        if not K.ValidRow(row) or row.key~=key then
+            K.store.invalidRows=K.store.invalidRows or {}
+            K.store.invalidRows[key]=row
+            K.rows[key]=nil
+        end
+    end
     if type(GP.db.kosReceipts)~='table' then GP.db.kosReceipts={} end; if type(GP.db.kosSoundAt)~='table' then GP.db.kosSoundAt={} end
     if GP.db.settings.kosSound==nil then GP.db.settings.kosSound=true end
     if type(GP.db.kosUndo)~='table' then GP.db.kosUndo={} end
-    K.scope=scope
     K.Prune()
+    K.SaveSnapshot(K.scope,K.store,guildFields)
+    return true
 end
-function K.Active(r) return type(r)=='table' and not r.deleted and K.Now()-(r.seen or r.added)<K.TTL end
+local function current(r)
+    return type(r)=='table' and not r.deleted and K.Now()-(r.seen or r.added)<K.TTL
+end
+function K.Active(r) return current(r) and not (K.overflow and K.overflow[r.key]) end
 function K.EachKill(r,visit)
     local seen={}
     local listing=(K.store.listings or {})[r.gen] or r.gen
@@ -105,17 +190,35 @@ function K.Stats(r)
     return total,rows
 end
 function K.Leaderboard()
-    local totals={}
-    for _,r in pairs(K.rows) do
-        if K.Active(r) then
-            local _,players=K.Stats(r)
-            for _,player in ipairs(players) do
-                totals[player.name]=(totals[player.name] or 0)+player.count
+    local cached=K.leaderboardCache
+    if cached and cached.revision==K.statsRevision then return cached.rows end
+    local totals,seen={},{}
+    local function include(receipt)
+        if seen[receipt.id] or not K.ValidReceipt(receipt) then return end
+        seen[receipt.id]=true
+        K.EachCredited(receipt,function(name)
+            local entry=totals[name] or {name=name,count=0,kills={}}
+            totals[name]=entry
+            entry.count=entry.count+1
+            entry.kills[entry.count]=receipt
+            if not entry.lastKillAt or receipt.time>entry.lastKillAt
+                or (receipt.time==entry.lastKillAt and receipt.victim<entry.lastVictim) then
+                entry.lastKillAt=receipt.time
+                entry.lastVictim=receipt.victim
             end
-        end
+        end)
     end
-    local rows=ranked(totals)
-    for i=#rows,6,-1 do rows[i]=nil end
+    for _,records in pairs(K.store.backups) do for _,r in pairs(records) do include(r) end end
+    for _,records in pairs(K.store.statistics or {}) do for _,r in pairs(records) do include(r) end end
+    if GP.KoSDeaths then GP.KoSDeaths.EachDeath(include) end
+    local rows={}
+    for _,entry in pairs(totals) do rows[#rows+1]=entry end
+    table.sort(rows,function(a,b)
+        if a.count~=b.count then return a.count>b.count end
+        return a.name<b.name
+    end)
+    for rank,entry in ipairs(rows) do entry.rank=rank end
+    K.leaderboardCache={revision=K.statsRevision,rows=rows}
     return rows
 end
 
@@ -203,22 +306,26 @@ function K.MergeDetails(d)
 end
 function K.Prune()
     local active={}
+    K.overflow={}
     for _,r in pairs(K.rows or {}) do
         if not r.deleted then
-            local expired=not K.Active(r)
+            local expired=not current(r)
             if expired and r.expired~=r.seen then r.expired=r.seen; K.Publish(r) end
             if not expired then r.expired=nil; active[#active+1]=r end
         end
     end
     table.sort(active,function(a,b) if a.added~=b.added then return a.added<b.added end if a.author~=b.author then return a.author<b.author end return a.key<b.key end)
-    for i=K.CAPACITY+1,#active do local r=active[i]; r.deleted=true; r.rev=r.rev+1; K.Publish(r); if r.author==K.Own() then GP.Print('KoS list full: '..GP.DisplayName(r.key)..' could not be retained.') end end
+    for i=K.CAPACITY+1,#active do K.overflow[active[i].key]=true end
 end
-function K.Merge(r)
+function K.ValidRow(r)
     if type(r)~='table' or not K.Name(r.key) or r.key~=K.Name(r.key) or not K.Name(r.author) or type(r.gen)~='string' or #r.gen>160 then return false end
     for _,f in ipairs({'added','seen','rev','alert'}) do if type(r[f])~='number' or r[f]~=r[f] or r[f]<0 or r[f]>4102444800 then return false end end
     for _,f in ipairs({'editor','guid','observer','zone'}) do if type(r[f])~='string' or #r[f]>160 or r[f]:find('[|%c]') then return false end end
-    if r.alert>K.Now()+60 then return false end
-    if r.seen>K.Now()+60 or r.added>K.Now()+60 or r.seen<r.added or type(r.reason)~='string' or #r.reason>400 or K.Reason(r.reason)~=r.reason then return false end
+    return r.seen>=r.added and type(r.reason)=='string' and #r.reason<=400 and K.Reason(r.reason)==r.reason
+end
+function K.Merge(r,authorized)
+    if not K.ValidRow(r) or (r.deleted and not authorized) then return false end
+    if r.alert>K.Now()+60 or r.seen>K.Now()+60 or r.added>K.Now()+60 then return false end
     local old=K.rows[r.key]
     r.race=K.DetailText(r.race); r.class=K.DetailText(r.class); r.level=K.DetailLevel(r.level)
     if type(r.detailsAt)~='number' or r.detailsAt~=r.detailsAt or r.detailsAt<0 or r.detailsAt>K.Now()+60 then r.detailsAt=0 end
@@ -261,19 +368,19 @@ local function managementNotice(action,key)
 end
 function K.Delete(key,gen)
     local r=K.rows[key]; local own=K.Own()
-    if not GP.IsEligibleGuild() or not own or not K.Active(r) or r.gen~=gen then return false end
+    if not K.CanDelete() or not K.Active(r) or r.gen~=gen then return false end
     local snapshot={}; for field,value in pairs(r) do snapshot[field]=value end
     r.deleted=true; r.rev=r.rev+1; r.reason=''; r.editor=own
     GP.db.kosUndo=GP.db.kosUndo or {}
     GP.db.kosUndo[key]={snapshot=snapshot,gen=gen,revision=r.rev,owner=own,scope=K.scope,expires=K.Now()+60}
-    K.Publish(r); managementNotice('removed',key)
+    K.Prune(); K.Publish(r); managementNotice('removed',key)
     GP.Print('KoS target removed. You can undo this removal for 60 seconds.')
     if GP.UI and GP.UI.ShowKoSUndo then GP.UI.ShowKoSUndo() end
     return true
 end
 function K.UndoList()
     local list={}; local own=K.Own()
-    if not own then return list end
+    if not K.CanDelete() then return list end
     for key,u in pairs(GP.db.kosUndo or {}) do
         local r=K.rows and K.rows[key]
         if type(u)~='table' or u.owner~=own or u.scope~=K.scope or type(u.expires)~='number' or u.expires~=u.expires or K.Now()>=u.expires or u.expires>K.Now()+60
@@ -287,7 +394,7 @@ function K.UndoList()
     return list
 end
 function K.UndoDelete(key)
-    if not GP.IsEligibleGuild() then return false end
+    if not K.CanDelete() then return false end
     K.UndoList(); local u=GP.db.kosUndo and GP.db.kosUndo[key]
     if not u then GP.Print('That KoS removal can no longer be undone.'); return false end
     K.Prune()
@@ -301,6 +408,7 @@ function K.UndoDelete(key)
     restored.rev=1; restored.deleted=nil; restored.editor=K.Own()
     K.store.listings[restored.gen]=K.store.listings[u.gen] or u.gen
     K.rows[key]=restored; GP.db.kosUndo[key]=nil
+    K.Prune()
     K.Publish(restored); if GP.PersonalKoS then GP.PersonalKoS.VerifyGuild(key) end; managementNotice('restored',key)
     if GP.UI and GP.UI.RefreshKoS then GP.UI.RefreshKoS() end
     if GP.UI and GP.UI.RefreshKoSPortraits then GP.UI.RefreshKoSPortraits() end
@@ -370,15 +478,27 @@ function K.Update(elapsed)
     end end
 end
 local frame=CreateFrame('Frame'); K.frame=frame
-for _,e in ipairs({'PLAYER_LOGIN','PLAYER_TARGET_CHANGED','PLAYER_FOCUS_CHANGED','UPDATE_MOUSEOVER_UNIT','NAME_PLATE_UNIT_ADDED','NAME_PLATE_UNIT_REMOVED','PLAYER_REGEN_ENABLED','PLAYER_ENTERING_WORLD','PLAYER_GUILD_UPDATE'}) do pcall(frame.RegisterEvent,frame,e) end
+for _,e in ipairs({'PLAYER_LOGIN','PLAYER_LOGOUT','PLAYER_TARGET_CHANGED','PLAYER_FOCUS_CHANGED','UPDATE_MOUSEOVER_UNIT','NAME_PLATE_UNIT_ADDED','NAME_PLATE_UNIT_REMOVED','PLAYER_REGEN_ENABLED','PLAYER_ENTERING_WORLD','PLAYER_GUILD_UPDATE'}) do pcall(frame.RegisterEvent,frame,e) end
 frame:SetScript('OnEvent',function(_,event,a,b)
     if not GP.db then return end
-    if event=='PLAYER_LOGIN' then K.Init(); if GP.KoSSync then GP.KoSSync.Init() end; K.Observe('target'); K.Observe('focus')
-    elseif not K.rows then return
-    elseif event=='PLAYER_ENTERING_WORLD' then K.Observe('target'); K.Observe('focus')
+    if event=='PLAYER_LOGOUT' then K.SaveSnapshot(K.scope,K.store,guildFields); return end
+    if event=='PLAYER_LOGIN' then K.login=true; return end
+    if not K.rows then return end
+    if event=='PLAYER_ENTERING_WORLD' then K.Observe('target'); K.Observe('focus')
     elseif event=='NAME_PLATE_UNIT_REMOVED' then K.units[a]=nil
     elseif event=='NAME_PLATE_UNIT_ADDED' then K.Observe(a)
     else K.Observe('target'); K.Observe('focus'); K.Observe('mouseover') end
     if GP.UI and GP.UI.RefreshKoSPortraits then GP.UI.RefreshKoSPortraits() end
 end)
-frame:SetScript('OnUpdate',function(_,elapsed) if GP.db then K.Update(elapsed); if GP.KoSSync then GP.KoSSync.Update(elapsed) end end end)
+frame:SetScript('OnUpdate',function(_,elapsed)
+    if not GP.db or not K.login then return end
+    if not K.started then
+        if not K.Init() then return end
+        K.started=true
+        if GP.PersonalKoS then GP.PersonalKoS.Init() end
+        if GP.KoSSync then GP.KoSSync.Init() end
+        K.Observe('target'); K.Observe('focus')
+    end
+    K.Update(elapsed)
+    if GP.KoSSync then GP.KoSSync.Update(elapsed) end
+end)

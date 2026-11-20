@@ -37,12 +37,12 @@ local function revisionFields(fields,revision)
 end
 local function fullKey(name)
     if not clean(name) or type(name)~="string" then return end
-    return name:lower():gsub("%s+", "")
+    return GP.PlayerKey(name)
 end
 local function key(name) return fullKey(name) end
 local function shortKey(name)
     local full=fullKey(name)
-    return full and full:gsub("%-.+$", "")
+    return full and (GP.RegionalNames() and full or full:gsub("%-.+$", ""))
 end
 local function localRealm()
     local realm=safe2(GetNormalizedRealmName)
@@ -52,7 +52,7 @@ end
 local function canonicalName(name)
     local full=fullKey(name)
     if not full then return end
-    if full:find("-",1,true) then return name end
+    if GP.RegionalNames() or full:find("-",1,true) then return name end
     local realm=localRealm()
     return realm and (name.."-"..realm) or name
 end
@@ -62,6 +62,10 @@ local function selfName()
     elseif UnitName then name, realm = safe2(UnitName,"player") end
     if not clean(name) or type(name)~='string' or name=='' then name,realm=safe2(UnitName,'player') end
     if not clean(name) or type(name)~='string' or name=='' then return '' end
+    if GP.RegionalNames() then
+        if not name:find("[ %-]") and clean(realm) and type(realm)=="string" and realm~="" then name=name.."-"..realm end
+        return name
+    end
     if not clean(realm) or type(realm)~="string" or realm=="" then
         realm=localRealm()
     end
@@ -116,7 +120,7 @@ local function split(s)
     return t
 end
 local function send(kind, parts, target)
-    if N.InInstance() and kind~="X" and kind~="Z" and kind~="K" then return false end
+    if N.InInstance() and kind~="X" and kind~="Z" and kind~="K" and kind~="V" and kind~="W" then return false end
     if not GP.IsEligibleGuild() or not C_ChatInfo or not C_ChatInfo.SendAddonMessage then return false end
     local payload = kind .. "~" .. table.concat(parts, "~")
     if #payload > 240 then return false end
@@ -256,7 +260,7 @@ end
 local function alive()
     if not UnitIsDeadOrGhost then return false end
     local ok, dead = pcall(UnitIsDeadOrGhost,"player")
-    return ok and clean(dead) and not dead
+    return ok and clean(dead) and dead==false
 end
 local function rosterGUID(name)
     if not GetNumGuildMembers or not GetGuildRosterInfo then return end
@@ -270,19 +274,27 @@ local function rosterGUID(name)
         end
     end
 end
-local function visible(name)
+local function visible(name,meeting)
     local function matches(unit)
         if not UnitExists or not UnitName then return false end
         local existsOK,exists=pcall(UnitExists,unit)
         if not existsOK or not clean(exists) or not exists then return false end
         local nameOK,n,realm = pcall(UnitName,unit)
         if not nameOK then return false end
-        if clean(realm) and type(realm)=="string" and realm~="" and clean(n) and type(n)=="string" then n=n.."-"..realm end
+        if clean(realm) and type(realm)=="string" and realm~="" and clean(n) and type(n)=="string"
+            and (not GP.RegionalNames() or not n:find("[ %-]")) then n=n.."-"..realm end
+        if meeting and (not clean(n) or type(n)~="string" or not fullKey(n) or not same(n,name)) then return false end
         if not same(n, name) then return false end
+        if meeting and (not UnitIsVisible or not UnitIsDeadOrGhost or not UnitInPhase) then return false end
+        if meeting and UnitIsPlayer then
+            local player=safe2(UnitIsPlayer,unit)
+            if not clean(player) or player~=true then return false end
+        end
         local expected=rosterGUID(name)
         local ok, actual = false, nil
         if UnitGUID then ok,actual=pcall(UnitGUID,unit) end
         if not clean(actual) then return false end
+        if meeting and expected and actual~=expected then return false end
         if expected and ok and type(actual)=="string" and actual~="" then
             if actual~=expected then return false end
         elseif not fullKey(n):find("-",1,true) then
@@ -295,12 +307,21 @@ local function visible(name)
         if UnitIsDeadOrGhost then local ok,v=pcall(UnitIsDeadOrGhost,unit); if not ok or not clean(v) or v then return false end end
         return true
     end
-    if matches("target") then return "target" end
+    for _,unit in ipairs({"target","focus","mouseover"}) do if matches(unit) then return unit end end
+    if meeting then
+        local plates=safe2(C_NamePlate and C_NamePlate.GetNamePlates)
+        if clean(plates) and type(plates)=="table" then
+            for _,plate in ipairs(plates) do
+                local unit=plate.namePlateUnitToken
+                if clean(unit) and type(unit)=="string" and matches(unit) then return unit end
+            end
+        end
+    end
     for i = 1, 40 do
         if matches("nameplate" .. i) then return "nameplate" .. i end
-        if matches("raid" .. i) then return "raid" .. i end
+        if not meeting and matches("raid" .. i) then return "raid" .. i end
     end
-    for i = 1, 4 do if matches("party" .. i) then return "party" .. i end end
+    if not meeting then for i = 1, 4 do if matches("party" .. i) then return "party" .. i end end end
     return false
 end
 local function distance(map1,x1,y1,map2,x2,y2)
@@ -365,6 +386,36 @@ end
 local function validId(id)
     return type(id)=="string" and #id<=40 and id:match("^%d+%-%d+$")~=nil
 end
+local function fareKey(peer,id,revision)
+    return key(peer)..":"..id..(revision and (":"..revision) or "")
+end
+local function showResult(receiptID,role,helper,amount)
+    local resultID=role..":"..receiptID
+    if not GP.db.fareResults[resultID] then
+        GP.db.fareResults[resultID]={helper=helper,amount=amount,time=now()}
+    end
+    if GP.UI.RefreshTracker then GP.UI.RefreshTracker() end
+end
+local function sendAcceptance(id,helper)
+    if helper.sighting then send("J",{id,helper.revision or ""},helper.name) end
+end
+local function sendSettlement(entry)
+    entry.nextAt=now()+6
+    return send("V",{entry.id,entry.quote,entry.revision or "",entry.token},entry.peer)
+end
+local function requestSighting(fare)
+    N.sightings=N.sightings or {}
+    local stamp=now()
+    for token,seen in pairs(N.sightings) do
+        if seen.fare~=fare or stamp-seen.time>8 then N.sightings[token]=nil end
+    end
+    if not alive() or not visible(fare.requester,true) then return end
+    N.sightingSequence=(N.sightingSequence or 0)+1
+    local token=stamp.."-"..N.sightingSequence
+    if send("M",{fare.id,fare.revision or "",token},fare.requester) then
+        N.sightings[token]={fare=fare,time=stamp}
+    end
+end
 local function validPosition(map,x,y)
     return type(map)=="number" and map==math.floor(map) and map>=1 and map<=100000
         and type(x)=="number" and x==x and x>=0 and x<=1
@@ -404,6 +455,7 @@ function N.Prune()
 end
 function N.Initialize()
     N.initialized=true
+    N.sightings={}
     if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then pcall(C_ChatInfo.RegisterAddonMessagePrefix, prefix) end
     if C_GuildInfo and C_GuildInfo.GuildRoster then pcall(C_GuildInfo.GuildRoster) end
     local channel=GP.db.settings.channel
@@ -425,6 +477,19 @@ function N.Initialize()
         else
             entry.revision=revision
             if type(entry.nextAt)~="number" or entry.nextAt~=entry.nextAt or entry.nextAt<0 or entry.nextAt>4102444800 then entry.nextAt=0 end
+        end
+    end
+    for id,entry in pairs(GP.db.fareSettlements) do
+        local revision,valid
+        if type(entry)=="table" then revision,valid=parseRevision(entry.revision and tostring(entry.revision)) end
+        if not valid or not validId(entry.id) or not validId(entry.token) or not validAmount(entry.quote)
+            or type(entry.peer)~="string" or entry.peer=="" or #entry.peer>100
+            or id~=fareKey(entry.peer,entry.id,revision) or not number(entry.expires,1,4102444800) then
+            GP.db.fareSettlements[id]=nil
+        else
+            entry.revision=revision
+            entry.expires=tonumber(entry.expires)
+            entry.nextAt=0
         end
     end
     local fare=GP.db.activeFare
@@ -540,7 +605,7 @@ function N.Request(manual, death, scope)
     local announcement=string.format("[Gondor PvP] %s %s in %s (%.1f, %.1f).",GP.DisplayName(selfName()),action,zone(map),100*x,100*y)
     local recipients={}
     local zoneMap,zoneName=N.Zone(map)
-    payload[#payload+1]=scope; payload[#payload+1]=tostring(zoneMap or 0)
+    payload[#payload+1]=scope; payload[#payload+1]=tostring(zoneMap or 0); payload[#payload+1]="sighting"
     local offersSent=false
     if scope=='WORLD' then offersSent=send('R',payload)
     else
@@ -608,11 +673,12 @@ function N.Accept(id)
     if not GP.Fares.PairEligible(previous,now()) then quote=0 end
     local fields={offer.id,tostring(map),string.format("%.7f",x),string.format("%.7f",y),tostring(quote)}
     revisionFields(fields,offer.revision)
+    if offer.sighting then fields[6]=offer.revision or ""; fields[7]="sighting" end
     if not send("A",fields,offer.sender) then
         GP.Print("Could not reach the requester. Please try again."); return false
     end
     N.active={id=offer.id, requester=offer.sender, map=offer.map, x=offer.x, y=offer.y, amount=quote,
-        originMap=map,originX=x,originY=y,revision=offer.revision,started=now()}
+        originMap=map,originX=x,originY=y,revision=offer.revision,started=now(),sighting=offer.sighting}
     GP.db.activeFare=N.active
     chat("[Gondor PvP] " .. GP.DisplayName(selfName()) .. " is responding to " .. GP.DisplayName(offer.sender) .. ".")
     GP.Map.Set(offer.map,offer.x,offer.y)
@@ -774,9 +840,9 @@ local function onMessage(message,sender,distribution)
     N.Prune()
     local p=split(message)
     local kind,id=p[1],p[2]
-    if N.InInstance() and kind~="X" and kind~="Z" and kind~="K" then return end
+    if N.InInstance() and kind~="X" and kind~="Z" and kind~="K" and kind~="V" and kind~="W" then return end
     if not id or #id>40 or not id:match("^%d+%-%d+$") then return end
-    if now()>=N.Deadline(id) and kind~="X" and kind~="Z" and kind~="K" and kind~="D" then return end
+    if now()>=N.Deadline(id) and kind~="X" and kind~="Z" and kind~="K" and kind~="D" and kind~="V" and kind~="W" then return end
     if kind == "R" and (distribution == "GUILD" or distribution == "WHISPER") and GP.db.settings.offers then
         if GP.Comms.Online(sender)==false then return end
         local alreadyActive=N.active and N.active.id==id and same(sender,N.active.requester)
@@ -805,7 +871,7 @@ local function onMessage(message,sender,distribution)
             if (not revision or not seen.revision) and (message==seen.message or stamp<seen.stamp) then return end
         end
         N.seenRequests[token]={revision=revision,stamp=stamp,message=message,at=now()}
-        N.offers[token]={id=id,sender=sender,map=map,x=x,y=y,race=p[6],class=p[7],quote=quote,expires=expiry,revision=revision,scope=scope,zoneMap=zoneMap}
+        N.offers[token]={id=id,sender=sender,map=map,x=x,y=y,race=p[6],class=p[7],quote=quote,expires=expiry,revision=revision,scope=scope,zoneMap=zoneMap,sighting=p[12]=="sighting"}
         if alreadyActive then N.offers[token].deferred=true; return end
         if GP.UI.ShowOffer then GP.UI.ShowOffer(token,N.offers[token],zone(map)) end
     elseif kind == "A" and distribution == "WHISPER" and N.request and N.request.id==id then
@@ -830,9 +896,67 @@ local function onMessage(message,sender,distribution)
             if not snapshot or now()-(snapshot.created or 0)>65 then return end
             local quote=GP.Map.Quote(map,x,y,snapshot.map,snapshot.x,snapshot.y)
             if not quote or (proposed ~= quote and proposed ~= 0) then return end
-            N.request.helpers[key(sender)]={name=sender,amount=proposed,revision=revision}
+            N.request.helpers[key(sender)]={name=sender,amount=proposed,revision=revision,sighting=p[8]=="sighting"}
             GP.Print(GP.DisplayName(sender) .. " accepted your Kill Share.")
         end
+        sendAcceptance(id,N.request.helpers[key(sender)])
+    elseif kind=="J" and distribution=="WHISPER" then
+        local fare=N.active
+        local revision,valid=parseRevision(p[3])
+        if valid and fare and id==fare.id and same(sender,fare.requester) and revision==fare.revision then
+            fare.sighting=true
+            fare.acceptedAt=now()
+        end
+    elseif kind=="M" and distribution=="WHISPER" and N.request and N.request.id==id then
+        local helper=N.request.helpers[key(sender)]
+        local revision,valid=parseRevision(p[3])
+        local token=p[4]
+        if not valid or not helper or revision~=helper.revision or not helper.sighting or not validId(token) then return end
+        local seenAt=tonumber(token:match("^%d+"))
+        if not seenAt or math.abs(now()-seenAt)>8 or not alive() or not visible(sender,true) then return end
+        local receiptID=fareKey(sender,id,revision)
+        local settlement=GP.db.fareSettlements[receiptID] or {id=id,peer=sender,revision=revision,quote=helper.amount,expires=now()+86400}
+        settlement.token=token
+        GP.db.fareSettlements[receiptID]=settlement
+        if sendSettlement(settlement) then helper.completedAt=helper.completedAt or now() end
+    elseif kind=="V" and distribution=="WHISPER" then
+        local quote=number(p[3],0,50)
+        local revision,valid=parseRevision(p[4])
+        if not valid or not quote or quote~=math.floor(quote) or not validId(p[5]) then return end
+        local receiptID=fareKey(sender,id,revision)
+        local record=GP.db.receipts[receiptID]
+        if N.ValidReceipt(record) and record.sightingQuote==quote then
+            send("W",{id,revision or "",record.amount},sender)
+            return
+        end
+        local fare,sighting=N.active,N.sightings and N.sightings[p[5]]
+        if not fare or fare.id~=id or revision~=fare.revision or not same(sender,fare.requester)
+            or fare.amount~=quote or not sighting or sighting.fare~=fare
+            or now()-sighting.time>8 or N.InInstance() or now()>=N.Deadline(id) or not alive() or not visible(sender,true) then return end
+        if receipt(receiptID,sender,quote) then
+            record=GP.db.receipts[receiptID]
+            record.sightingQuote=quote
+            N.active=nil; GP.db.activeFare=nil; GP.Map.Clear()
+            showResult(receiptID,"H",selfName(),record.amount)
+            send("W",{id,revision or "",record.amount},sender)
+            showDeferredOffers()
+        end
+    elseif kind=="W" and distribution=="WHISPER" then
+        local revision,valid=parseRevision(p[3])
+        local amount=number(p[4],0,50)
+        if not valid or not amount then return end
+        local receiptID=fareKey(sender,id,revision)
+        local settlement=GP.db.fareSettlements[receiptID]
+        if not settlement or now()>=settlement.expires or (amount~=0 and amount~=settlement.quote) then return end
+        GP.db.fareSettlements[receiptID]=nil
+        local request=N.request
+        local helper=request and request.id==id and request.helpers[key(sender)]
+        if helper and helper.revision==revision then
+            request.finished=request.finished or {}
+            request.finished[key(sender)]=revision or 0
+            request.helpers[key(sender)]=nil
+        end
+        showResult(receiptID,"R",sender,amount)
     elseif kind == "P" and distribution == "WHISPER" then
         local map,x,y=position(p,3); local isAlive=p[6]=="1"
         local revision,revisionValid=parseRevision(p[7])
@@ -840,8 +964,10 @@ local function onMessage(message,sender,distribution)
         if not map or not revisionValid or (role and role~="" and role~="H" and role~="R") then return end
         if role~="H" and N.active and N.active.id==id and same(sender,N.active.requester) then
             if revision~=N.active.revision then return end
-            N.active.acceptedAt=now(); N.active.positionAt=now()
+            if not N.active.sighting then N.active.acceptedAt=now() end
+            N.active.positionAt=now()
             N.active.map,N.active.x,N.active.y=map,x,y; GP.Map.Set(map,x,y)
+            if N.active.sighting then return end
             if isAlive and alive() and within(map,x,y,sender) and visible(sender) then
                 if send("C",revisionFields({id},revision),sender) then N.active.confirmedAt=now() end
             elseif isAlive and alive() and not N.active.rangeHint then
@@ -860,7 +986,7 @@ local function onMessage(message,sender,distribution)
     elseif kind == "C" and distribution == "WHISPER" and N.request and N.request.id==id then
         local helper=N.request.helpers[key(sender)]
         local revision,revisionValid=parseRevision(p[3])
-        if not revisionValid or not helper or revision~=helper.revision then return end
+        if not revisionValid or not helper or helper.sighting or revision~=helper.revision then return end
         local pos=helper and helper.position
         if pos and now()-pos.at<=8 and pos.alive and alive() and visible(sender) and within(pos[1],pos[2],pos[3],sender) then
             if send("D",revisionFields({id,tostring(helper.amount)},helper.revision),sender) then
@@ -877,11 +1003,13 @@ local function onMessage(message,sender,distribution)
             acknowledgeReceipt(sender,id,revision,amount)
             return
         end
-        if amount==N.active.amount and N.active.confirmedAt and now()-N.active.confirmedAt<=8 and alive() and visible(sender) and within(N.active.map,N.active.x,N.active.y,sender) then
+        if not N.active.sighting and amount==N.active.amount and N.active.confirmedAt and now()-N.active.confirmedAt<=8 and alive() and visible(sender) and within(N.active.map,N.active.x,N.active.y,sender) then
             local suffix=revision and (":"..revision) or ""
             local current=key(sender)..":"..id..suffix
             local legacy=shortKey(sender)..":"..id..suffix
-            if not GP.db.receipts[legacy] then receipt(current,sender,amount) end
+            if not GP.db.receipts[legacy] and receipt(current,sender,amount) then
+                showResult(current,"H",selfName(),GP.db.receipts[current].amount)
+            end
             send("K",revisionFields({id},revision),sender)
             N.active=nil; GP.db.activeFare=nil; GP.Map.Clear(); showDeferredOffers()
         end
@@ -972,7 +1100,7 @@ function N.OnEvent(event,...)
     if N.CheckInstance() then
         if event~="CHAT_MSG_ADDON" then return end
         local _,message=...
-        if not clean(message) or type(message)~="string" or not message:match("^[XZK]~") then return end
+        if not clean(message) or type(message)~="string" or not message:match("^[XZKVW]~") then return end
     end
     if event=="CHAT_MSG_ADDON" then
         local pre,msg,distribution,sender=...
@@ -1050,6 +1178,10 @@ function N.Update(elapsed)
             entry.nextAt=now()+15
         end
     end
+    for receiptID,entry in pairs(GP.db.fareSettlements) do
+        if now()>=entry.expires then GP.db.fareSettlements[receiptID]=nil
+        elseif now()>=entry.nextAt then sendSettlement(entry) end
+    end
     if blocked then return end
     for token,offer in pairs(N.offers) do
         if offer.expires and now()>=offer.expires then N.offers[token]=nil end
@@ -1071,14 +1203,17 @@ function N.Update(elapsed)
         local fields={N.active.id,tostring(N.active.originMap),string.format("%.7f",N.active.originX),
             string.format("%.7f",N.active.originY),tostring(N.active.amount)}
         revisionFields(fields,N.active.revision)
+        if N.active.sighting then fields[6]=N.active.revision or ""; fields[7]="sighting" end
         send("A",fields,N.active.requester)
         if not N.active.waitHint and now()-(N.active.started or now())>=15 then
             N.active.waitHint=true; GP.Print("Waiting for the requester to confirm your fare. You can cancel with /gpvp cancel.")
         end
     end
+    if N.active and N.active.sighting and N.active.acceptedAt then requestSighting(N.active) end
     if N.request then
         for _,helper in pairs(N.request.helpers) do
-            if helper.completedAt and (not helper.lastD or now()-helper.lastD>=15) then
+            if helper.sighting and not helper.completedAt then sendAcceptance(N.request.id,helper) end
+            if not helper.sighting and helper.completedAt and (not helper.lastD or now()-helper.lastD>=15) then
                 if send("D",revisionFields({N.request.id,tostring(helper.amount)},helper.revision),helper.name) then helper.lastD=now() end
             end
         end

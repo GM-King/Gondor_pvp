@@ -39,3 +39,7 @@
 !/PersonalKoS.lua
 !/PersonalKoSUI.lua
 !/KoSDeaths.lua
+
+!/Media/
+/Media/*
+!/Media/KoSTrophyTrio.tga

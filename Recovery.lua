@@ -9,6 +9,7 @@ local function safe(fn,...)
 end
 local function canonical(name)
     if type(name)~="string" or name=="" or #name>100 or name:find("[~|%c]") then return end
+    if GP.RegionalNames() then return GP.PlayerKey(name) end
     if not name:find("-",1,true) then
         local realm=safe(GetNormalizedRealmName) or safe(GetRealmName)
         if type(realm)~="string" or realm=="" then return end
@@ -32,7 +33,7 @@ local function member(sender)
     local count=safe(GetNumGuildMembers,true)
     if type(count)~="number" or count<0 or count>2000 then return end
     local match,found=nil,0
-    local qualified=sender:find("-",1,true)
+    local qualified=GP.RegionalNames() or sender:find("-",1,true)
     for i=1,count do
         local name=safe(GetGuildRosterInfo,i)
         local key=canonical(name)

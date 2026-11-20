@@ -3,13 +3,16 @@ local K = GP.KoS
 local P = {encounters = {}, revision = 0}
 GP.PersonalKoS = P
 local safe = K.Safe
+local personalFields={'rows','imported'}
 
 function P.Init()
-    if not GP.db then return end
+    local realm=K.Realm()
+    if not GP.db or not K.rows or not realm then return end
     GondorPvPPersonalKoS = type(GondorPvPPersonalKoS)=='table' and GondorPvPPersonalKoS or {}
-    local realm = safe(GetNormalizedRealmName) or safe(GetRealmName) or 'unknown'
     local store = GondorPvPPersonalKoS[realm]
     if type(store)~='table' then store={}; GondorPvPPersonalKoS[realm]=store end
+    P.scope='personal@'..realm
+    K.Restore(P.scope,store,personalFields)
     store.rows=type(store.rows)=='table' and store.rows or {}
     store.imported=type(store.imported)=='table' and store.imported or {}
     store.sequence=tonumber(store.sequence) or 0
@@ -35,6 +38,15 @@ function P.Init()
     for _,rs in pairs(K.store and K.store.statistics or {}) do for _,r in pairs(rs) do P.Receipt(r) end end
     for key in pairs(K.rows or {}) do P.VerifyGuild(key) end
     P.revision=P.revision+1
+    K.SaveSnapshot(P.scope,store,personalFields)
+end
+
+function P.Remove(key)
+    if not P.rows[key] then return end
+    P.rows[key]=nil
+    P.count=P.count-1
+    P.revision=P.revision+1
+    K.SaveSnapshot(P.scope,P.store,personalFields)
 end
 
 function P.Key(name)
@@ -60,6 +72,7 @@ function P.Add(name,reason,identity)
     P.VerifyGuild(key)
     for _,rs in pairs(K.store and K.store.backups or {}) do for _,r in pairs(rs) do if r.victim==key then P.Receipt(r) end end end
     P.revision=P.revision+1
+    K.SaveSnapshot(P.scope,P.store,personalFields)
     return true
 end
 
@@ -166,9 +179,9 @@ function P.AddBoth(identity,reason)
 end
 
 local frame=CreateFrame('Frame')
-for _,event in ipairs({'PLAYER_LOGIN','PLAYER_TARGET_CHANGED','PLAYER_FOCUS_CHANGED','UPDATE_MOUSEOVER_UNIT','NAME_PLATE_UNIT_ADDED'}) do frame:RegisterEvent(event) end
+for _,event in ipairs({'PLAYER_LOGOUT','PLAYER_TARGET_CHANGED','PLAYER_FOCUS_CHANGED','UPDATE_MOUSEOVER_UNIT','NAME_PLATE_UNIT_ADDED'}) do frame:RegisterEvent(event) end
 frame:SetScript('OnEvent',function(_,event,a,b)
-    if event=='PLAYER_LOGIN' then P.Init() end
+    if event=='PLAYER_LOGOUT' then K.SaveSnapshot(P.scope,P.store,personalFields); return end
     if not P.rows then return end
     if event=='NAME_PLATE_UNIT_ADDED' then P.Observe(a)
     else P.Observe('target'); P.Observe('focus'); P.Observe('mouseover') end

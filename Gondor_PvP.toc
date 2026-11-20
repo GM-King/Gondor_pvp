@@ -2,8 +2,8 @@
 ## Title: Gondor PvP
 ## Notes: Guild PvP collection and assistance
 ## Author: Gondor Calls for Raid
-## Version: 0.9.18-beta
-## SavedVariables: GondorPvPBackups, GondorPvPKoS, GondorPvPPersonalKoS
+## Version: 0.9.21-beta
+## SavedVariables: GondorPvPBackups, GondorPvPKoS, GondorPvPPersonalKoS, GondorPvPKoSRecovery
 ## SavedVariablesPerCharacter: GondorPvPCharacter
 
 Libs\LibStub.lua

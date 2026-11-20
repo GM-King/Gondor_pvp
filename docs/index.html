@@ -41,11 +41,11 @@
 </p>
 <p class="lead">Collect cards from honorable kills. Rally your guildmates. Earn points for showing up when the fight finds them.</p>
 <div class="actions">
-<div class="download-action"><a class="button" href="https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.18-beta/Gondor_PvP.zip">Download beta <span aria-hidden="true">↓</span>
-</a><p class="meta updated">Last updated <time id="last-updated" datetime="2026-11-20T03:31:58Z">2026-11-20</time></p></div>
+<div class="download-action"><a class="button" href="https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.21-beta/Gondor_PvP-0.9.21-beta.zip">Download beta <span aria-hidden="true">↓</span>
+</a><p class="meta updated">Last updated <time id="last-updated" datetime="2026-11-20T22:08:57Z">2026-11-21</time></p></div>
 <a href="#guide">How to play ↘</a>
 </div>
-<p class="meta">WoW Forever · 0.9.18 beta · 78.1 MiB</p>
+<p class="meta">WoW Forever · 0.9.21 beta · 78.6 MiB</p>
 
 </div>
 <div class="sergeant-stage">
@@ -152,8 +152,8 @@
 <span class="step">04 / SHOW UP</span>
 <div>
 <h3>Close the distance. Earn your points.</h3>
-<p>Meet alive, in the same phase, and within <strong>five feet</strong>. If the addon cannot identify you automatically, <strong>target each other</strong>. The helper can check the completed fare and tally under <strong>Points</strong> in the binder.</p>
-<p>Rewards depend on travel distance. Repeat rewards from the same requester are limited to once every ten minutes. If precise positioning is unavailable, the fare stays pending.</p>
+<p>Meet alive and in the same phase. The fare completes when both addons see the other player. If friendly nameplates are hidden, <strong>target each other</strong>. Both players need the update for this arrival check.</p>
+<p>Rewards depend on travel distance. Repeat rewards from the same requester are limited to once every ten minutes.</p>
 </div>
 <span class="finish-mark" aria-hidden="true">↗</span>
 </article>
@@ -167,9 +167,9 @@
 <aside class="note">After a confirmed or uncertain PvP death, the same choices appear with <strong>Decline</strong>. Closing, declining or waiting 15 seconds sends nothing. An accepted choice uses the location captured at death. Updated addons are required for Zone offers; existing cooldowns and instance restrictions still apply.</aside></div>
 <figure><a class="small-preview" href="assets/choices.png" data-preview><img src="assets/choices.png" width="300" height="160" loading="lazy" alt="Compact death request choice menu with Muster Rohirrim Zone, Light Beacons World, Decline and a close X"></a><figcaption>Offline layout illustration <span>Death request choices · Click to enlarge ↗</span></figcaption></figure></article>
 <article class="guide-row reverse"><div><span class="step">KEEP YOUR BACKUP IN SIGHT</span><h3>Know who’s coming.<br>Close the distance.</h3>
-<p>The minimal <strong>active fare tracker</strong> stays bottom-right while fares are active, including during combat. See who requested help, who accepted, and approximate yards between you. It supports helping someone while other guildmates answer your own request.</p>
+<p>The minimal <strong>active fare tracker</strong> stays bottom-right while fares are active and hides during combat. See who requested help, who accepted, and approximate yards between you. It supports helping someone while other guildmates answer your own request.</p>
 <p><strong>Drag its header</strong> to move it; your position is saved per character. Scroll when more than five fares are active. Each row’s <strong>X cancels only that fare</strong>, preserving your other helpers and open request. To withdraw the whole request, use <strong>Withdraw request</strong> in Kill Share.</p>
-<p>Distance updates with received locations. Old locations show <strong>Updating location…</strong>; incompatible locations show <strong>Distance unavailable</strong>. Completion acknowledgement stays visible until the handshake finishes. These readouts do not change reward quotes or the precise meeting checks.</p></div>
+<p>Distance updates with received locations. Old locations show <strong>Updating location…</strong>; incompatible locations show <strong>Distance unavailable</strong>. Both players see the actual points awarded. The result stays until dismissed with <strong>OK</strong> or <strong>×</strong>.</p></div>
 <figure><a class="small-preview" href="assets/tracker.png" data-preview><img src="assets/tracker.png" width="300" height="168" loading="lazy" alt="Movable active fare tracker showing a requester and two accepted helpers, yardage and individual cancellation X buttons"></a><figcaption>Offline layout illustration <span>Persistent fare tracker · Click to enlarge ↗</span></figcaption></figure></article>
 </section>
 <section class="guide wrap" id="kos" aria-labelledby="kos-title">
@@ -181,16 +181,16 @@
 <div>
 <span class="step">05 / MARK THE TARGET</span>
 <h3>Remember the name.<br>Recognise the threat.</h3>
-<p>Open <strong>Kill on Sight</strong> in the binder or type <code>/gpvp kos</code>. All Gondor Calls for Raid members with the updated addon share a list of up to <strong>200 Alliance targets</strong>. Changes sync between online guildmates, with catch-up when they return.</p>
+<p>Open <strong>Kill on Sight</strong> in the binder or type <code>/gpvp kos</code>. All Gondor Calls for Raid members with the updated addon share a list of up to <strong>200 Alliance targets</strong>. A fresh install repopulates Guild KoS when a guildmate with the list is online. Garry Oak’s addon confirms missed manual removals when you are both online.</p>
 <p><strong>Right-click an Alliance character portrait → Gondor KoS</strong> to add them. Give a reason of up to <strong>100 characters</strong>; the original reason stays read-only. A crosshair marks listed target and focus portraits, including Z-Perl frames.</p>
 <p>Click a name to see the <strong>reason, who added them, race, class, last-seen level and a log of individual kills</strong>. Sort the aligned <strong>Name, Level, Last Seen and Total Kills</strong> columns; click again to reverse the order. Names use class colours, and the list has a draggable scrollbar. Kill totals cover the current listing: a fresh addition resets the total, while Undo preserves it. Earned points remain intact. Older entries show unknown attributes until someone sees the target again.</p>
 <p>The movable <strong>KoS Targets</strong> box shows nearby targets as head portraits. Newly spotted enemies can appear during combat, and their portraits become clickable when combat ends. Close it to dismiss the current encounter, or reopen it with <strong>Show nearby targets</strong> in the KoS window.</p>
 <p>Spot an identifiable, living target nearby in the open world and hear a <strong>local warning sound</strong>. Sightings are announced in <code>gcfrpvp</code>, limited to once per target every <strong>ten minutes</strong>. Each encountering member has their own sound warning and can turn it off in the KoS window.</p>
 <p>When a Guild KoS target dies in the open world, each guildmate whose addon records the death earns <strong>5 PvP points</strong>. Pet kills count too. Run <code>/gpvp kosstatus</code> to check what your client reported if a kill is missed.</p>
-<p>Each verified death counts once on the target’s record, even when several guildmates receive credit. Use <strong>Kill Leaderboard</strong> to post the top five guildmates to guild chat, or <strong>Latest Kill</strong> to report who earned credit for the latest kill today, who they killed, how long ago and who originally added the target.</p>
+<p>Each verified death counts once on the target’s record, even when several guildmates receive credit. Open <strong>Kill Leaderboard</strong> for all-time rankings. Sort by any column, click a player for their kill history, or use <strong>Announce to Guild</strong> to post the top five. Use <strong>Latest Kill</strong> to report who earned credit for the latest kill today, who they killed, how long ago and who originally added the target.</p>
 <p>Right-click the minimap icon to open <strong>Personal KoS</strong>, a private list shared by your characters on the same realm. Verified targets can be pushed to the Guild KoS list. Deaths of personal-only targets stay private and award no points.</p>
-<p><strong>Delete</strong> asks for confirmation and announces who removed the target in <code>gcfrpvp</code>. The deleting player has <strong>60 seconds to Undo</strong>, including across a reload. Restoring an entry preserves its original reason, contributor, details and sighting time, and announces the restoration. Undo needs a free list slot.</p>
-<aside class="note">Targets unseen by the guild for <strong>ten days</strong> are automatically removed. Automatic expiry is quiet and preserves earned points. Manual deletions can be undone using the popup or <strong>Undo deletes</strong>.</aside>
+<p>Only Garry Oak can use <strong>Delete</strong> or <strong>Undo</strong> on Guild KoS. Delete asks for confirmation and announces who removed the target in <code>gcfrpvp</code>. The deleting player has <strong>60 seconds to Undo</strong>, including across a reload. Restoring an entry preserves its original reason, contributor, details and sighting time, and announces the restoration. Undo needs a free list slot.</p>
+<aside class="note">Each target leaves the active list after <strong>ten days</strong> without a guild sighting. Expiry preserves kill history and earned points. The addon keeps a local recovery copy of the list.</aside>
 </div>
 <figure><a href="assets/kos.png" data-preview><img src="assets/kos.png" width="840" height="570" loading="lazy" alt="Kill on Sight table with class-coloured names, Name, Level, Last Seen and Total Kills headings, scrollbar and original orc artwork"></a><figcaption>Offline layout illustration <span>Shared KoS list · Click to enlarge ↗</span></figcaption>
 </figure>
@@ -206,13 +206,13 @@
 </section>
 <section class="beta wrap">
 <div>
-<p class="eyebrow">BETA 0.9.18</p>
+<p class="eyebrow">BETA 0.9.21</p>
 <h2>Still sharpening the axe.</h2>
 </div>
 <div>
-<p>Offline checks pass. Live-client gameplay verification is pending. Death detection, channel delivery, map pins, precise positioning and KoS death verification depend on the APIs available in Forever. Test these with guildmates before relying on rewards.</p>
+<p>Offline checks pass. Live-client gameplay verification is pending. Death detection, channel delivery, map pins, player sightings and KoS death verification depend on the APIs available in Forever. Test these with guildmates before relying on rewards.</p>
 <div class="links">
-<a href="https://github.com/GM-King/Gondor_pvp/releases/tag/v0.9.18-beta">Release notes ↗</a>
+<a href="https://github.com/GM-King/Gondor_pvp/releases/tag/v0.9.21-beta">Release notes ↗</a>
 <a href="https://github.com/GM-King/Gondor_pvp/issues">Report an issue ↗</a>
 </div>
 </div>

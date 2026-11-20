@@ -35,13 +35,13 @@ Cancellation notices are retried for up to 24 hours, including after a reload, u
 
 When another death updates an active request, existing helpers keep their original quoted rewards. If the newer alert has not expired when a helper finishes or cancels the earlier fare, it appears as a new offer; the ten-minute pair limit still applies. Guildmates should use the same current release for reliable handling of these repeated alerts.
 
-To complete a fare, both characters must be alive, in the same phase, within five feet, and visible to each other's addons. If the game cannot identify a nearby player automatically, both players should target each other. If the client withholds exact three-dimensional positions, the addon leaves the fare pending and does not award points. Requests and fares expire 30 minutes after the original request. Later alerts cannot extend that deadline. They survive UI reloads but are cancelled when either participant logs out; one helper leaving does not cancel other helpers. The Kill Share window shows time remaining.
+To complete a fare, both players must be alive and each addon must see the other character in the same phase. Enable friendly nameplates or target each other if the game has not exposed the other character. Map coordinates provide route guidance and determine the quote at acceptance. Both players should run the current addon for sighting-based arrival detection. Requests and fares expire 30 minutes after the original request. Later alerts cannot extend that deadline. They survive UI reloads but are cancelled when either participant logs out. One helper leaving does not cancel other helpers.
 
 ## PvP Points
 
 Points are a non-spendable tally earned only for fulfilled Kill Shares. The offer quotes the reward at acceptance from straight-line travel distance: 10–20 points in the same zone, 21–49 in a different zone on the same continent, and 50 on a different continent. A helper earns points from the same requester at most once every ten minutes. A repeat fare can still be fulfilled for zero points.
 
-Points and card presentation records are saved per character. Guild receipt backups provide recovery when an updated guildmate has a copy. The addon rejects duplicate completions and checks guild membership and proximity, but a player who controls their local addon files can alter local data. No addon-only mechanism can make those files tamper-proof.
+Points and card presentation records are saved per character. Guild receipt backups provide recovery when an updated guildmate has a copy. The addon rejects duplicate completions and checks guild membership and mutual sightings, but a player who controls their local addon files can alter local data. No addon-only mechanism can make those files tamper-proof.
 
 
 ## Updates, reinstalls and a second computer
@@ -78,7 +78,7 @@ The source project's `Development/FOREVER_TEST_GUIDE.md` provides a detailed gui
 
 ## 0.9.11 beta — shared Kill on Sight
 
-Open **Kill on Sight** in the binder or use `/gpvp kos`. Gondor members can right-click an identifiable Alliance target portrait and choose **Gondor KoS**. Reasons allow 100 characters and cannot be edited after addition. Click a name to see its reason, contributor, race, class and last-seen level. Missing attributes display as Unknown until observed. Manual deletion requires confirmation. Entries expire after ten days without a newer guild sighting; editing a reason does not extend that time.
+Open **Kill on Sight** in the binder or use `/gpvp kos`. Gondor members can right-click an identifiable Alliance target portrait and choose **Gondor KoS**. Reasons allow 100 characters and cannot be edited after addition. Click a name to see its reason, contributor, race, class and last-seen level. Missing attributes display as Unknown until observed. Guild deletion requires confirmation and is restricted to Garry Oak. Entries expire after ten days without a newer guild sighting; editing a reason does not extend that time.
 
 The shared list holds 200 active players. Nearby nameplates, targets, focus and mouseover provide open-world sightings when the client exposes identities. Sightings update across the guild through paced addon messages. Each member hears the supplied warning locally, while coordinated channel announcements have a ten-minute cooldown per target. The KoS window has a local sound toggle.
 
@@ -90,7 +90,7 @@ Manual KoS removals announce the target and deleting member in `gcfrpvp`. The de
 
 ## KoS statistics and help audiences
 
-The Guild KoS page has **Kill Leaderboard** and **Latest Kill** buttons. The leaderboard posts up to five guildmates by total credit across the current list. Latest Kill lists everyone credited at the newest kill time today, along with the target, time elapsed and who added the target. Today starts at realm midnight. Both reports post to guild chat.
+The Guild KoS page has **Kill Leaderboard** and **Latest Kill** buttons. The leaderboard opens above Guild KoS and ranks everyone with recorded Guild KoS kills, including credit from expired or removed targets. Click any column heading to sort, or select a player to view their rank, kill totals, unique victims and kill history. **Announce to Guild** posts the five highest-ranked players to guild chat. Latest Kill posts everyone credited at the newest kill time today to guild chat, along with the target, time elapsed and who added the target. Today starts at realm midnight.
 
 Each target death counts once. The Guild KoS kill log and leaderboard credit each guildmate whose updated addon witnesses the death. Distance is no longer required. Pets, NPCs, other players and environmental damage can all cause a qualifying death. Guildmates who receive the synced result can view the kill log. Guildmates should update to 0.9.18 beta for witness-based credit.
 
@@ -112,7 +112,7 @@ These changes are verified offline only; live Forever compatibility remains unve
 
 Zone/World choices and death prompts open in the upper-middle. The X or Escape closes without requesting help; death prompts still expire after 15 seconds. Incoming offers stay bottom-right and show approximate straight-line yards to the requested location. Incompatible or unavailable locations show Distance unavailable.
 
-Accepted fares appear in a compact bottom-right tracker, including while the binder is closed or during combat. It shows your requester and responding helpers, with distance updates. Positions older than ten seconds show Updating location. Each row's X cancels that fare only; other helpers and your request remain active. Drag the header to move it; the position is saved per character. Scroll to see more than five fares. Completion acknowledgements remain visible until finished. The minimap artwork and red background share a circular mask inside the existing border.
+Accepted fares appear in a compact bottom-right tracker, even while the binder is closed. The tracker hides during combat. It shows your requester and responding helpers, with distance updates. Positions older than ten seconds show Updating location. Each row's X cancels that fare only; other helpers and your request remain active. Drag the header to move it; the position is saved per character. Scroll to see more than five fares. Completed fares show the helper and the points awarded on both players’ trackers. Results survive a UI reload and stay until dismissed with OK or ×. The minimap artwork and red background share a circular mask inside the existing border.
 
 ## 0.9.15 beta — KoS portrait targeting
 
