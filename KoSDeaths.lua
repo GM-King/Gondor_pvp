@@ -9,71 +9,6 @@ local function finite(n)
         and n==n and n~=math.huge and n~=-math.huge
 end
 
-local function position(unit)
-    if type(UnitPosition)~='function' then return end
-    local ok,x,y,z,map=pcall(UnitPosition,unit)
-    if ok and finite(x) and finite(y) and finite(z) and finite(map) then
-        return {x=x,y=y,z=z,map=map}
-    end
-end
-
-local function visible(unit)
-    return safe(UnitIsVisible,unit)==true and safe(UnitInPhase,unit)~=false
-end
-
-local function within(a,b)
-    if a and b then
-        return a.map==b.map and (a.x-b.x)^2+(a.y-b.y)^2+(a.z-b.z)^2<=1600
-    end
-end
-
-local hunterRangeSpells={75,5116,466930} -- Auto Shot, Concussive Shot, Black Arrow
-local function hunterSpellInRange(unit)
-    local _,class=safe(UnitClass,'player')
-    if class~='HUNTER' or not C_Spell then return end
-    local isKnown=C_SpellBook and C_SpellBook.IsSpellKnown or IsPlayerSpell or IsSpellKnown
-    for _,spell in ipairs(hunterRangeSpells) do
-        if safe(isKnown,spell)==true and safe(C_Spell.IsSpellHarmful,spell)==true then
-            local info=safe(C_Spell.GetSpellInfo,spell)
-            local maximum=type(info)=='table' and info.maxRange
-            if finite(maximum) and maximum>0 and maximum<=40 and safe(C_Spell.IsSpellInRange,spell,unit)==true then
-                return true
-            end
-        end
-    end
-end
-
-local function selfInRange(unit, enemy, living)
-    local squared, checked=safe(UnitDistanceSquared,unit)
-    if checked==true and finite(squared) and squared>=0 then return squared<=1600 end
-    local range=within(position('player'),enemy)
-    if range~=nil then return range end
-    if living then return hunterSpellInRange(unit) end
-end
-
-local function collect(unit, own, guild, living)
-    local result={}
-    local enemy=position(unit)
-    result[own]=selfInRange(unit,enemy,living)
-    if not guild or not enemy then return result end
-    local victimGuid=safe(UnitGUID,unit)
-    for token in pairs(D.units) do
-        if token~=unit and safe(UnitIsPlayer,token)==true then
-            local guid=safe(UnitGUID,token)
-            if guid and guid~=victimGuid then
-                local name,realm=safe(UnitName,token)
-                local member=type(name)=='string' and S.Member(realm and realm~='' and name..'-'..realm or name)
-                if member and member~=own and result[member]~=true then
-                    local range
-                    if visible(token) then range=within(position(token),enemy) else range=false end
-                    if range~=nil then result[member]=range end
-                end
-            end
-        end
-    end
-    return result
-end
-
 local function storage()
     K.store.deathObservations=K.store.deathObservations or {}
     return K.store.deathObservations
@@ -149,7 +84,7 @@ function D.Merge(r, peer, recovery)
         or not finite(r.time) or r.time<0 or r.time~=math.floor(r.time) or r.time>K.Now()+60
         or not finite(r.previous) or r.previous<0 or r.previous>r.time
         or #r.id>160 or r.id:match('^(.-):%d+:%d+$')~=r.reporter
-        or (not recovery and (r.reporter~=peer or (r.member~=peer and not S.Member(r.member)))) then return false end
+        or (not recovery and (r.reporter~=peer or r.member~=peer)) then return false end
     local all=storage()
     local observation=all[r.id] or {}
     if observation[r.member] then return false end
@@ -168,100 +103,113 @@ function D.Merge(r, peer, recovery)
     return true
 end
 
-local function record(sample)
-    local death=sample.death
-    local key,own=sample.key,K.Own()
-    if not own then return end
-    local guild=GP.IsEligibleGuild() and K.rows[key]
-    if K.Active(guild) then
-        local listing=K.store.listings[guild.gen] or guild.gen
-        if listing~=sample.listing then return end
-        for member,close in pairs(death.ranges) do
-            if close then
-                if not death.id then
-                    GP.db.kosSequence=(GP.db.kosSequence or 0)+1
-                    death.id=string.format('%s:%010d:%012d',own,death.time,GP.db.kosSequence)
-                    D.announcements[death.id]={key=key,at=death.at+4}
-                end
-                local r={id=death.id,victim=key,reporter=own,member=member,time=death.time,previous=sample.previous or 0,
-                    listing=listing,author=guild.author}
-                if D.Merge(r,own) then S.Death(r) end
-            end
+local function listingFor(key)
+    local row=GP.IsEligibleGuild() and K.rows[key]
+    if K.Active(row) then return K.store.listings[row.gen] or row.gen,row end
+end
+
+local function personalRow(key)
+    local row=P.rows and P.rows[key]
+    return row and row.verified and row
+end
+
+local function listedKeyForGuid(guid)
+    if GP.IsEligibleGuild() then
+        for key,row in pairs(K.rows) do
+            if row.guid==guid and K.Active(row) then return key end
         end
-    elseif not sample.listing and death.ranges[own] and not death.personalRecorded and P.rows and P.rows[key] then
-        P.RecordDeath(key,own,death.time)
-        death.personalRecorded=true
+    end
+    for key,row in pairs(P.rows or {}) do
+        if row.verified and row.guid==guid then return key end
     end
 end
 
-local function confirmDeath(guid,unit)
+local function recordDeath(guid,key,signal)
     local sample=D.samples[guid]
-    if not sample or (not sample.death and D.clock-sample.at>1) then return end
+    if sample and sample.death and sample.key==key then
+        -- Keep the useful outcome when two death events describe the same kill.
+        return
+    end
     local own=K.Own()
-    if not own then return end
-    local death=sample.death
-    if death and D.clock-death.at>2 then return end
-    local current={}
-    -- Further signals can provide a second reading in the death frame. A later
-    -- position can reflect someone walking up to the corpse.
-    if (not death or D.clock==death.at) and unit and safe(UnitGUID,unit)==guid then
-        if safe(UnitInPhase,unit)==false then return end
-        if visible(unit) then current=collect(unit,own,sample.listing~=nil,false) end
+    if not own then D.status=signal..' did not credit a kill because your character identity was unavailable.'; return end
+    local listing,row=listingFor(key)
+    if not row and not personalRow(key) then
+        D.status=signal..' did not match a current KoS listing.'
+        return
     end
-    if not death then
-        death={at=D.clock,time=K.Now(),ranges=current}
-        sample.death=death
-        for member,range in pairs(sample.ranges) do
-            if death.ranges[member]==nil and D.clock-range.at<=1 then
-                death.ranges[member]=range.close
-            end
-        end
+
+    local now=K.Now()
+    if row then
+        GP.db.kosSequence=(GP.db.kosSequence or 0)+1
+        local id=string.format('%s:%010d:%012d',own,now,GP.db.kosSequence)
+        local report={id=id,victim=key,reporter=own,member=own,time=now,
+            previous=sample and sample.key==key and sample.previous or 0,listing=listing,author=row.author}
+        if not D.Merge(report,own) then D.status=signal..' could not save the Guild KoS death.'; return end
+        S.Death(report)
+        D.announcements[id]={key=key,at=D.clock+4}
     else
-        local added=false
-        for member,close in pairs(current) do
-            if death.ranges[member]==nil then
-                death.ranges[member]=close
-                if close then added=true end
-            end
-        end
-        if not added then return end
+        P.RecordDeath(key,own,now)
     end
-    record(sample)
+    D.samples[guid]={key=key,death=now,at=D.clock}
+    D.status=signal..' recorded '..GP.DisplayName(key)..(row and ' on Guild KoS. You earned 5 PvP points.' or ' on Personal KoS.')
 end
 
 local function observe(unit)
-    if not visible(unit) then return end
+    if safe(UnitIsVisible,unit)~=true or safe(UnitInPhase,unit)==false then return end
     local guid=safe(UnitGUID,unit)
     if type(guid)~='string' or guid=='' then return end
     local sample=D.samples[guid]
     local dead=safe(UnitIsDeadOrGhost,unit)
-    if dead==nil or (UnitIsFeignDeath and safe(UnitIsFeignDeath,unit)~=false) then return end
-    if dead then
-        if sample then
-            confirmDeath(guid,unit)
-            sample.corpse=true
+    if dead==nil then dead=safe(UnitIsDead,unit) end
+    local feign=safe(UnitIsFeignDeath,unit)
+    if dead==true then
+        if sample and not sample.death and (feign==false or not UnitIsFeignDeath) then
+            recordDeath(guid,sample.key,'Observed death')
         end
+        if D.samples[guid] and D.samples[guid].death then D.samples[guid].corpse=true end
         return
     end
+    if dead~=false or feign==true then return end
+    if sample and sample.death and not sample.corpse and D.clock-sample.at<=2 then return end
+
     local id=K.Identity(unit)
-    if not id then return end
-    local key=K.Name(id.name)
-    local guild=key and GP.IsEligibleGuild() and K.rows[key]
-    local listing=K.Active(guild) and (K.store.listings[guild.gen] or guild.gen) or nil
-    if not listing and not (P.rows and P.rows[key]) then return end
-    local own=K.Own()
-    if not own then return end
-    if sample and sample.death and not sample.corpse then return end
-    if not sample or sample.key~=key or sample.listing~=listing or sample.death then
-        local previous=sample and sample.death and sample.death.time or nil
-        sample={key=key,listing=listing,ranges={},previous=previous}
-        D.samples[guid]=sample
+    local key=id and K.Name(id.name)
+    if not key or (not listingFor(key) and not personalRow(key)) then return end
+    local previous=sample and sample.key==key and (sample.death or sample.previous)
+    D.samples[guid]={key=key,at=D.clock,previous=previous}
+end
+
+local function handleDeath(guid,signal)
+    if issecretvalue and issecretvalue(guid) then
+        D.status=signal..' withheld the victim identity.'
+        return
     end
-    sample.at=D.clock
-    if not sample.unit or unit=='target' or safe(UnitGUID,sample.unit)~=guid then sample.unit=unit end
-    for member,close in pairs(collect(unit,own,listing~=nil,true)) do
-        sample.ranges[member]={close=close,at=D.clock}
+    if type(guid)~='string' or guid=='' then D.status=signal..' did not supply a victim identity.'; return end
+    local sample=D.samples[guid]
+    local key=sample and sample.key or listedKeyForGuid(guid)
+    if not key then
+        -- The death can arrive before polling sees the unit or before its GUID
+        -- is saved on the listing.
+        for unit in pairs(D.units) do
+            if safe(UnitGUID,unit)==guid then
+                local id=K.Identity(unit)
+                key=id and K.Name(id.name)
+                if key then break end
+            end
+        end
     end
+    if key then recordDeath(guid,key,signal) else D.status=signal..' did not match a known KoS victim.' end
+end
+
+function D.PrintStatus()
+    local metadata=C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
+    local version=safe(metadata,'Gondor_PvP','Version') or '0.9.18-beta'
+    local registered={}
+    for _,event in ipairs({'UNIT_DIED','PARTY_KILL','UNIT_HEALTH','UNIT_FLAGS'}) do
+        if D.events[event] then registered[#registered+1]=event end
+    end
+    GP.Print('KoS '..version..' | Listening: '..(#registered>0 and table.concat(registered,', ') or 'none'))
+    GP.Print(D.status or 'No local KoS death signal received since login or reload.')
 end
 
 local frame=CreateFrame('Frame')
@@ -276,21 +224,22 @@ local function reset()
     end
 end
 reset()
+D.events={}
 for _,event in ipairs({'PLAYER_ENTERING_WORLD','NAME_PLATE_UNIT_ADDED','NAME_PLATE_UNIT_REMOVED',
     'PLAYER_TARGET_CHANGED','PLAYER_FOCUS_CHANGED','UPDATE_MOUSEOVER_UNIT','UNIT_FLAGS','UNIT_HEALTH','UNIT_DIED','PARTY_KILL'}) do
-    pcall(frame.RegisterEvent,frame,event)
+    local ok,result=pcall(frame.RegisterEvent,frame,event)
+    D.events[event]=ok and result~=false
 end
 frame:SetScript('OnEvent',function(_,event,a,b)
     if event=='PLAYER_ENTERING_WORLD' then reset(); return end
-    if not GP.db or not K.rows or GP.Network.InInstance() then return end
+    if not GP.db or not K.rows then return end
     if event=='UNIT_DIED' or event=='PARTY_KILL' then
-        local guid=b
-        if event=='UNIT_DIED' then guid=a end
-        if not (issecretvalue and issecretvalue(guid)) and type(guid)=='string' then
-            local sample=D.samples[guid]
-            if sample then confirmDeath(guid,sample.unit) end
-        end
-    elseif event=='NAME_PLATE_UNIT_ADDED' then
+        if GP.Network.InInstance() then D.status=event..' occurred outside open-world KoS tracking.'; return end
+        if event=='UNIT_DIED' then handleDeath(a,event) else handleDeath(b,event) end
+        return
+    end
+    if GP.Network.InInstance() then return end
+    if event=='NAME_PLATE_UNIT_ADDED' then
         if not (issecretvalue and issecretvalue(a)) and type(a)=='string' then D.units[a]=true; observe(a) end
     elseif event=='NAME_PLATE_UNIT_REMOVED' then
         if not (issecretvalue and issecretvalue(a)) and type(a)=='string' then D.units[a]=nil end
@@ -320,7 +269,7 @@ frame:SetScript('OnUpdate',function(_,elapsed)
             D.announcements[id]=nil
             D.Each(pending.key,function(r)
                 if r.id==id then
-                    S.Chat('Gondor KoS target '..GP.DisplayName(r.victim)..' died. Nearby guildmates earned +5 PvP Points each.')
+                    S.Chat('Gondor KoS target '..GP.DisplayName(r.victim)..' died. Guildmates who witnessed the death earned +5 PvP Points each.')
                 end
             end)
         end

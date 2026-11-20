@@ -204,11 +204,12 @@ SlashCmdList.GONDORPVP = function(message)
     if command == "request" then GP.UI.ShowRequestMenu()
     elseif command == "kos" then GP.UI.ShowKoS()
     elseif command == "status" then GP.Network.PrintStatus()
+    elseif command == "kosstatus" and GP.KoSDeaths then GP.KoSDeaths.PrintStatus()
     elseif command == "retry" then GP.Network.RetryAnnouncement()
     elseif command == "cancel" then GP.Network.CancelFare()
     elseif command == "cancelrequest" then GP.Network.CancelRequest()
     elseif command == "settings" then GP.UI.ToggleSettings()
-    elseif command == "help" then GP.Print("/gpvp opens your binder. /gpvp kos, request, retry, status, cancel, cancelrequest, or settings.")
+    elseif command == "help" then GP.Print("/gpvp opens your binder. Commands: kos, kosstatus, request, retry, status, cancel, cancelrequest, settings.")
     else GP.UI.Toggle() end
 end
 
