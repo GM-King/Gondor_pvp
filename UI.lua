@@ -399,8 +399,10 @@ function UI.ShowPoints()
             rows[#rows+1]=record
         end
     end
-    for _,r in pairs(GP.db.kosReceipts or {}) do
-        if GP.KoS and GP.KoS.ValidReceipt(r) then rows[#rows+1]={requester="KoS: "..GP.DisplayName(r.victim),amount=5,time=r.time} end
+    if GP.KoS then
+        GP.KoS.EachReward(function(r)
+            rows[#rows+1]={requester="KoS: "..GP.DisplayName(r.victim),amount=5,time=r.time}
+        end)
     end
     table.sort(rows,function(a,b) return a.time>b.time end)
     local lines={"Recent PvP rewards:"}
@@ -762,6 +764,27 @@ local function kosFit(f)
     f:SetScale(math.max(.1,scale))
 end
 UI.KoSTable={Text=kosText,Panel=kosPanel,Age=kosAge,Colour=kosColour,Scroll=kosScroll,ScrollRange=kosScrollRange,Fit=kosFit,Window=window}
+
+local function kosKillLog(record,personal)
+    local K=GP.KoS
+    local kills={}
+    local function add(receipt)
+        local names={}
+        K.EachCredited(receipt,function(name) names[#names+1]=name end)
+        table.sort(names)
+        local displays={}
+        for i,name in ipairs(names) do displays[i]=UI.KoSPlayerName(name) end
+        kills[#kills+1]={time=receipt.time,id=receipt.id,names=table.concat(displays,', '),
+            member=#names==1 and names[1] or nil}
+    end
+    if personal then GP.PersonalKoS.EachKill(record.key,add) else K.EachKill(record,add) end
+    table.sort(kills,function(a,b)
+        if a.time~=b.time then return a.time>b.time end
+        return a.id<b.id
+    end)
+    return kills
+end
+
 function UI.RefreshKoSDetails(details)
     local f=details or UI.kosDetails; if not f or not f:IsShown() then return end
     local r
@@ -790,26 +813,42 @@ function UI.RefreshKoSDetails(details)
     f.authorHeading:ClearAllPoints(); f.authorHeading:SetPoint('TOPLEFT',25,-y)
     f.author:ClearAllPoints(); f.author:SetPoint('TOPLEFT',25,-(y+18))
     f.author:SetText(r.author and UI.KoSPlayerName(r.author) or 'Unknown'); kosMemberColour(f.author,r.author)
-    local total,players
-    if f.personal then total,players=GP.PersonalKoS.Stats(f.key) else total,players=GP.KoS.Stats(r) end
+    local kills=kosKillLog(r,f.personal)
+    local total=#kills
     f.killTotal:ClearAllPoints(); f.killTotal:SetPoint('TOPLEFT',345,-(y+48)); f.killTotal:SetText('Total kills: '..total)
     f.killsHeading:ClearAllPoints(); f.killsHeading:SetPoint('TOPLEFT',25,-(y+48))
-    local visible=math.max(1,math.min(6,#players))
+    local visible=math.max(1,math.min(6,total))
     local panel=f.killPanel
-    panel:ClearAllPoints(); panel:SetPoint('TOPLEFT',25,-(y+80)); panel:SetHeight(32+visible*28+8)
+    panel:ClearAllPoints(); panel:SetPoint('TOPLEFT',25,-(y+80))
     panel.scrollbar:SetHeight(math.max(1,visible*28-32))
-    kosScrollRange(panel,#players,visible)
+    kosScrollRange(panel,total,visible)
+    local overflow=0
     for i,row in ipairs(panel.rows) do
-        local entry=players[i+panel.offset]
+        local entry=kills[i+panel.offset]
         row:SetShown(i<=visible and entry~=nil)
         if entry then
-            row.name:SetText(UI.KoSPlayerName(entry.name)); kosMemberColour(row.name,entry.name)
-            row.count:SetText(tostring(entry.count))
+            row.when:SetText(date and date('%d %b %H:%M',entry.time) or kosAge(entry.time))
+            row.name:SetText(entry.names)
+            kosMemberColour(row.name,entry.member)
+            local measured=row.name.GetUnboundedStringWidth and row.name:GetUnboundedStringWidth()
+                or #entry.names*7
+            local width=math.max(row.viewport:GetWidth(),math.ceil(measured)+2)
+            if row.namesContent:GetWidth()~=width then
+                row.namesContent:SetWidth(width)
+                row.name:SetWidth(width)
+                if row.viewport.UpdateScrollChildRect then row.viewport:UpdateScrollChildRect() end
+            end
+            overflow=math.max(overflow,width-row.viewport:GetWidth())
         end
     end
-    panel.empty:SetShown(#players==0)
+    panel.horizontal:SetMinMaxValues(0,overflow)
+    panel.horizontal:SetValue(math.min(panel.horizontal:GetValue(),overflow))
+    panel.horizontal:SetShown(overflow>0)
+    panel.scrollNames(panel.horizontal:GetValue())
+    panel:SetHeight(32+visible*28+(overflow>0 and 22 or 8))
+    panel.empty:SetShown(total==0)
     f.range:ClearAllPoints(); f.range:SetPoint('TOPLEFT',25,-(y+80+panel:GetHeight()+3))
-    f.range:SetText(#players==0 and (f.personal and '0 characters' or '0 guildmates') or (panel.offset+1)..'–'..math.min(#players,panel.offset+visible)..' of '..#players..(f.personal and ' characters' or ' guildmates'))
+    f.range:SetText(total==0 and '0 kills' or (panel.offset+1)..'–'..math.min(total,panel.offset+visible)..' of '..total..(total==1 and ' kill' or ' kills'))
     f:SetHeight(y+80+panel:GetHeight()+64); kosFit(f)
 end
 function UI.ShowKoSDetails(r,personal)
@@ -827,30 +866,55 @@ function UI.ShowKoSDetails(r,personal)
         f.reasonBox:SetBackdropColor(.12,.13,.15,1)
         f.reason=kosText(f.reasonBox,13,10,8,430,40); f.reason:SetJustifyV('TOP')
         f.authorHeading=kosText(f,11,25,190,450,18,'ADDED BY'); f.authorHeading:SetTextColor(1,.82,.45)
-        f.killsHeading=kosText(f,12,25,220,310,24,personal and 'CHARACTER KILL BREAKDOWN' or 'GUILD KILL BREAKDOWN'); f.killsHeading:SetTextColor(1,.82,.45)
+        f.killsHeading=kosText(f,12,25,220,310,24,'KILL LOG'); f.killsHeading:SetTextColor(1,.82,.45)
         f.author=kosText(f,12,25,190,450,22)
         f.killTotal=kosText(f,13,345,220,130,24,nil,'RIGHT')
         local panel=kosPanel(f,450,100,25,250); f.killPanel=panel; panel.rows={}
         -- Header labels belong to the header frame, above its opaque backdrop.
         local header=kosPanel(panel,448,30,1,1); panel.header=header
         header:SetBackdropColor(.22,.18,.12,1)
-        panel.guildmateHeading=kosText(header,12,9,4,330,22,personal and 'Character' or 'Guildmate')
-        panel.killsHeading=kosText(header,12,344,4,68,22,'Kills','RIGHT')
-        panel.guildmateHeading:SetTextColor(1,.86,.58); panel.killsHeading:SetTextColor(1,.86,.58)
+        panel.whenHeading=kosText(header,12,9,4,100,22,'Time')
+        panel.namesHeading=kosText(header,12,114,4,300,22,'Credited players')
+        panel.whenHeading:SetTextColor(1,.86,.58); panel.namesHeading:SetTextColor(1,.86,.58)
         panel.empty=kosText(panel,12,10,34,400,28,'No recorded kills.')
         for i=1,6 do
             local row=kosPanel(panel,420,28,2,32+(i-1)*28); panel.rows[i]=row
             row:SetBackdropBorderColor(0,0,0,0)
             local shade=i%2==0 and .10 or .075; row:SetBackdropColor(shade,shade+.008,shade+.018,1)
-            row.name=kosText(row,12,8,3,325,22); row.count=kosText(row,12,343,3,65,22,nil,'RIGHT')
+            row.when=kosText(row,11,8,3,96,22)
+            local viewport=CreateFrame('ScrollFrame',nil,row); row.viewport=viewport
+            viewport:SetSize(302,22); viewport:SetPoint('TOPLEFT',112,-3)
+            local content=CreateFrame('Frame',nil,viewport); row.namesContent=content
+            content:SetSize(302,22); viewport:SetScrollChild(content)
+            row.name=kosText(content,12,0,0,302,22)
+            if row.name.SetWordWrap then row.name:SetWordWrap(false) end
         end
+        local horizontal=CreateFrame('Slider',nil,panel,'BackdropTemplate')
+        panel.horizontal=horizontal
+        horizontal:SetSize(300,12); horizontal:SetPoint('BOTTOMLEFT',114,4)
+        horizontal:SetBackdrop({bgFile='Interface\\Buttons\\WHITE8X8'})
+        horizontal:SetBackdropColor(.18,.15,.11,1)
+        if horizontal.SetOrientation then horizontal:SetOrientation('HORIZONTAL') end
+        if horizontal.SetThumbTexture then horizontal:SetThumbTexture('Interface\\Buttons\\UI-SliderBar-Button-Horizontal') end
+        horizontal:SetMinMaxValues(0,0); horizontal:SetValue(0)
+        function panel.scrollNames(offset)
+            for _,row in ipairs(panel.rows) do
+                if row.viewport.SetHorizontalScroll then
+                    row.viewport:SetHorizontalScroll(math.min(offset,row.namesContent:GetWidth()-row.viewport:GetWidth()))
+                end
+            end
+        end
+        horizontal:SetScript('OnValueChanged',function(_,value) panel.scrollNames(value) end)
         kosScroll(panel,personal and 'GondorPvPPersonalKillScroll' or 'GondorPvPKoSKillScroll',function() UI.RefreshKoSDetails(f) end)
         f.range=kosText(f,10,25,350,300,16); f.range:SetTextColor(.8,.84,.89)
         button(f,'Close',100,375,12,function() f:Hide() end)
         f:SetScript('OnUpdate',function(_,elapsed) f.elapsed=(f.elapsed or 0)+elapsed; if f.elapsed>=1 then f.elapsed=0; UI.RefreshKoSDetails(f) end end)
     end
     local f=UI[slot]
-    if f.key~=r.key or f.gen~=r.gen then f.killPanel.offset=0 end
+    if f.key~=r.key or f.gen~=r.gen then
+        f.killPanel.offset=0
+        f.killPanel.horizontal:SetValue(0)
+    end
     rosterClasses=nil; f.key=r.key; f.gen=r.gen; window(f); f:Show(); UI.RefreshKoSDetails(f)
 end
 function UI.RefreshKoS()
@@ -947,12 +1011,12 @@ function UI.ShowKoS()
         panel.empty=kosText(panel,13,15,170,520,50,'No players on the Kill on Sight list.','CENTER')
         kosScroll(panel,'GondorPvPKoSListScroll',UI.RefreshKoS); panel.scrollbar:SetHeight(320)
         f.range=kosText(f,11,250,499,540,20)
-        f.mute=button(f,'Sound: on',120,250,52,function() GP.db.settings.kosSound=not GP.db.settings.kosSound; UI.RefreshKoS() end)
-        f.undo=button(f,'Undo deletes',120,390,52,UI.ShowKoSUndo)
-        button(f,'Show nearby targets',170,525,52,function() if GP.KoSTargets then GP.KoSTargets.ShowNearby() end end)
-        button(f,'Close',100,710,52,function() f:Hide() end)
-        f.leaderboard=button(f,'Kill Leaderboard',160,250,20,reportLeaderboard)
-        f.latestKill=button(f,'Latest Kill',130,425,20,reportLatestKill)
+        f.mute=button(f,'Sound: on',180,250,52,function() GP.db.settings.kosSound=not GP.db.settings.kosSound; UI.RefreshKoS() end)
+        f.undo=button(f,'Undo deletes',180,440,52,UI.ShowKoSUndo)
+        button(f,'Show nearby targets',180,630,52,function() if GP.KoSTargets then GP.KoSTargets.ShowNearby() end end)
+        button(f,'Close',180,630,20,function() f:Hide() end)
+        f.leaderboard=button(f,'Kill Leaderboard',180,250,20,reportLeaderboard)
+        f.latestKill=button(f,'Latest Kill',180,440,20,reportLatestKill)
         f:SetScript('OnUpdate',function(_,elapsed) f.elapsed=(f.elapsed or 0)+elapsed; if f.elapsed>=1 then f.elapsed=0; UI.RefreshKoS() end end)
     end
     UI.RefreshKoS(); window(UI.kosFrame); UI.kosFrame:Show()

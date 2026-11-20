@@ -6,7 +6,7 @@ A PvP card binder and guild help system for **Gondor Calls for Raid** on WoW For
 
 ## Download
 
-**[Download Gondor PvP 0.9.15 beta (78.1 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.15-beta/Gondor_PvP.zip)**
+**[Download Gondor PvP 0.9.17 beta (78.1 MiB ZIP)](https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.17-beta/Gondor_PvP.zip)**
 
 Visit the [Gondor PvP website](https://gm-king.github.io/Gondor_pvp/) for installation instructions and an overview.
 
@@ -80,9 +80,9 @@ The source project's `Development/FOREVER_TEST_GUIDE.md` provides a detailed gui
 
 Open **Kill on Sight** in the binder or use `/gpvp kos`. Gondor members can right-click an identifiable Alliance target portrait and choose **Gondor KoS**. Reasons allow 100 characters and cannot be edited after addition. Click a name to see its reason, contributor, race, class and last-seen level. Missing attributes display as Unknown until observed. Manual deletion requires confirmation. Entries expire after ten days without a newer guild sighting; editing a reason does not extend that time.
 
-The shared list holds 100 active players. Nearby nameplates, targets, focus and mouseover provide open-world sightings when the client exposes identities. Sightings update across the guild through paced addon messages. Each member hears the supplied warning locally, while coordinated channel announcements have a ten-minute cooldown per target. The KoS window has a local sound toggle.
+The shared list holds 200 active players. Nearby nameplates, targets, focus and mouseover provide open-world sightings when the client exposes identities. Sightings update across the guild through paced addon messages. Each member hears the supplied warning locally, while coordinated channel announcements have a ten-minute cooldown per target. The KoS window has a local sound toggle.
 
-A verified player/pet killing blow on an active KoS target adds five points. Distinct later kills can award again. KoS reward receipts survive reload and are backed up through updated guildmates. Restricted or missing killer/victim identifiers cannot award points; inspect KoS status and record this as a blocked live test. Existing fare rewards remain separate.
+Each verified nearby guildmate earns five PvP points when an active Guild KoS target dies in the open world. KoS rewards survive reload and can be recovered from updated guildmates. The client must expose the enemy's identity, death and distance before the addon can credit a witness. Existing fare rewards remain separate.
 
 This beta includes the shared Kill on Sight list. Offline checks pass; live-client compatibility still requires guild testing. No live verification is claimed.
 
@@ -92,15 +92,15 @@ Manual KoS removals announce the target and deleting member in `gcfrpvp`. The de
 
 The Guild KoS page has **Kill Leaderboard** and **Latest Kill** buttons. The leaderboard posts up to five guildmates by total credit across the current list. Latest Kill lists everyone credited at the newest kill time today, along with the target, time elapsed and who added the target. Today starts at realm midnight. Both reports post to guild chat.
 
-Each target death counts once. Every guildmate the client can verify within 40 yards of the killer gets credit in the Guild Kill Breakdown and leaderboard, including guildmates outside the group. Only the killing blow earns five PvP points. Updated clients can share presence and show the full breakdown.
+Each target death counts once. Every guildmate the client can verify within 40 yards of the enemy gets credit in the Guild KoS kill log and leaderboard, including guildmates outside the group. Pets, NPCs, other players and environmental damage can all cause a qualifying death. Every credited guildmate earns five PvP points. Update guild clients to 0.9.17 or newer to sync the expanded list and the new death records.
 
 ### Nearby KoS targets
 
 The **KoS Targets** box appears at the top centre when a living KoS player is detected locally through a nameplate, target, focus or mouseover in the open world. Click a head portrait to target that player; hover for their name and KoS reason. Portraits remain for 30 seconds after detection is lost. A guild sighting alone does not open the box.
 
-Drag the header outside combat to move it; the position is saved per character. The X dismisses the current encounter, including during combat. It automatically returns after all nearby targets have cleared and a fresh encounter begins. **Show nearby targets** in the Kill on Sight window reopens a dismissed encounter manually. During combat, existing portraits remain clickable while additions, removals and movement wait until combat ends. These controls require live Forever verification.
+Drag the header outside combat to move it; the position is saved per character. The X dismisses the current encounter, including during combat. It automatically returns after all nearby targets have cleared and a fresh encounter begins. **Show nearby targets** in the Kill on Sight window reopens a dismissed encounter manually. During combat, newly detected targets appear immediately as preview portraits. Existing target buttons remain clickable. Preview portraits become clickable when combat ends. These controls require live Forever verification.
 
-The KoS table has Name, Level, Last Seen, and Total Kills columns, class-coloured names, and a draggable scrollbar. Click a heading to sort; click again to reverse. Unknown levels stay last. The sort choice is saved per character. Click a target name for compact details and a separate scrollable Guildmate/Kills table. Guildmate names use roster class colours when available. Verified killing blows count once, and pets credit their owners. Totals cover the current listing: removing or expiring and freshly adding a target resets the total; Undo restores it. Earned points remain intact. Older kill records use the listing creation time as their cutoff. New KoS kills announce once in gcfrpvp; synchronization and backup recovery stay silent.
+The KoS table has Name, Level, Last Seen, and Total Kills columns, class-coloured names, and a draggable scrollbar. Click a heading to sort; click again to reverse. Unknown levels stay last. The sort choice is saved per character. Click a target name for compact details and a scrollable kill log. Each line shows the time and all credited names separated by commas. Long lines can be scrolled sideways. Each verified death counts once, even when several guildmates earn credit. Totals cover the current listing: removing or expiring and freshly adding a target resets the total; Undo restores it. Earned points remain intact. Older kill records use the listing creation time as their cutoff. New KoS kills announce once in gcfrpvp; synchronization and backup recovery stay silent.
 
 Zone offers use private addon messages to online guildmates whose roster zone matches the request zone. Subzones share their containing zone. Recipients must still be in the zone when the offer appears or is accepted. Unknown zone or roster data never causes a World broadcast. Both choices still post the configured-channel announcement. World offers include party and raid members. Saved offer opt-outs and instance restrictions still apply. Updated addons are required for Zone offers and precise listing attribution.
 
@@ -125,3 +125,7 @@ Right-click the minimap icon for Menu, Personal KoS or Guild KoS. Personal KoS i
 Typed names remain unverified until a local living, visible open-world encounter supplies the matching player GUID. Encounters with unlisted enemies are remembered for this session. Proof attached to a personal entry survives reloads and is shared with your alts. An active Guild KoS entry also verifies the matching personal entry. A red [Guild KoS] badge beside its name shows current guild membership. Verification persists when the guild entry later expires or is removed. Portrait additions attempt both lists and report capacity or duplicate failures. Verified pushes can restore expired or removed guild entries, with earlier guild history and your characters’ private kills credited once. Private kills grant no points. Updated guild clients are needed to receive the new statistics-only history packets. Addon saves remain editable local data.
 
 Personal-only targets trigger your local sound, crosshair and nearby portrait box. Guild announcements and five-point rewards require an active Guild KoS entry. Existing combat restrictions and the 30-second nearby sighting grace still apply. Live testing in WoW Forever is still pending.
+
+## 0.9.17 beta — Nearby KoS deaths
+
+Guild KoS holds up to 200 active enemies. The Guild KoS and matching Personal KoS histories share verified nearby death credit. Personal-only deaths stay private and award no points. Kill Leaderboard and Latest Kill are aligned with the other Guild KoS controls.

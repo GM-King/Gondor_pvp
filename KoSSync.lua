@@ -2,10 +2,11 @@ local _,GP=...
 local K=GP.KoS
 local S={queue={},queued={},parts={},peers={},clock=0,sequence=0}
 GP.KoSSync=S
-local prefix='GONDPVPKOS1'
+local prefix='GONDPVPKOS2'
 local fields={'key','author','editor','gen','added','seen','rev','alert','reason','guid','observer','zone','deleted','expired'}
 local rewardFields={'id','owner','victim','time'}
 local metadataFields={'key','value'}
+local deathFields={'id','victim','reporter','member','time','previous','listing','author'}
 local detailFields={'key','gen','seen','race','class','level'}
 local function encode(s) return (tostring(s or ''):gsub('.',function(c) return string.format('%02x',c:byte()) end)) end
 local function decode(s) if #s%2~=0 or s:find('[^%da-f]') then return end return (s:gsub('..',function(c) return string.char(tonumber(c,16)) end)) end
@@ -42,15 +43,7 @@ local function details(r,target,priority)
     record('M',{key=r.key,gen=r.gen,seen=r.detailsAt or 0,race=r.race or '',class=r.class or '',level=r.level or 0},detailFields,target,priority)
 end
 function S.Record(r) record('L',r,fields,nil,1); details(r,nil,1); if K.store.listings[r.gen] then record('I',{key=r.gen,value=K.store.listings[r.gen]},metadataFields,nil,1) end end
-function S.Reward(r)
-    local author=K.store.killAuthors[r.id]
-    if author then record('A',{key=r.id,value=author},metadataFields,nil,0) end
-    record('R',r,rewardFields,nil,1)
-    if K.store.attribution[r.id] then record('T',{key=r.id,value=K.store.attribution[r.id]},metadataFields,nil,1) end
-    for member in pairs(K.store.killMembers[r.id] or {}) do
-        record('P',{key=r.id,value=member},metadataFields,nil,1)
-    end
-end
+function S.Death(r) record('E',r,deathFields,nil,0) end
 
 local function addMember(id,member)
     local members=K.store.killMembers[id] or {}
@@ -115,6 +108,9 @@ local function digest()
     eachKillMetadata(function(kind,id,value)
         rows[#rows+1]=kind..pack({key=id,value=value},metadataFields)
     end)
+    if GP.KoSDeaths then GP.KoSDeaths.EachObservation(function(r)
+        rows[#rows+1]='E'..pack(r,deathFields)
+    end) end
     table.sort(rows); local a,b=1,0
     for _,r in ipairs(rows) do for i=1,#r do a=(a+r:byte(i))%65521; b=(b+a)%65521 end end
     return #rows..'-'..string.format('%.0f',b*65536+a)
@@ -134,21 +130,33 @@ function S.Message(message,distribution,sender)
     elseif message=='O' and distribution=='WHISPER' and not S.requested then S.requested=peer; enqueue('F',peer,3)
     elseif message=='F' and distribution=='WHISPER' then
         if S.peers[peer] and S.clock-S.peers[peer]<60 then return end; S.peers[peer]=S.clock
-        for _,r in pairs(K.rows) do record('L',r,fields,peer,3); details(r,peer,3) end
-        for _,rs in pairs(K.store.backups) do for _,r in pairs(rs) do record('R',r,rewardFields,peer,3) end end
-    for key,value in pairs(K.store.listings) do record('I',{key=key,value=value},metadataFields,peer,3) end
-        for key in pairs(K.store.historyTargets or {}) do record('J',{key=key,value='true'},metadataFields,peer,3) end
-        for _,rs in pairs(K.store.statistics or {}) do for _,r in pairs(rs) do record('H',r,rewardFields,peer,3) end end
-        for key,value in pairs(K.store.attribution) do record('T',{key=key,value=value},metadataFields,peer,3) end
-        eachKillMetadata(function(kind,id,value)
-            record(kind,{key=id,value=value},metadataFields,peer,3)
+        S.transfers=S.transfers or {}
+        if S.transfers[peer] then return end
+        S.transfers[peer]=coroutine.create(function()
+            local function send(kind,r,keys)
+                while #S.queue>=512 do coroutine.yield() end
+                record(kind,r,keys,peer,3)
+            end
+            for _,r in pairs(K.rows) do
+                send('L',r,fields)
+                send('M',{key=r.key,gen=r.gen,seen=r.detailsAt or 0,race=r.race or '',
+                    class=r.class or '',level=r.level or 0},detailFields)
+            end
+            for _,rs in pairs(K.store.backups) do for _,r in pairs(rs) do send('R',r,rewardFields) end end
+            for key,value in pairs(K.store.listings) do send('I',{key=key,value=value},metadataFields) end
+            for key in pairs(K.store.historyTargets or {}) do send('J',{key=key,value='true'},metadataFields) end
+            for _,rs in pairs(K.store.statistics or {}) do for _,r in pairs(rs) do send('H',r,rewardFields) end end
+            for key,value in pairs(K.store.attribution) do send('T',{key=key,value=value},metadataFields) end
+            eachKillMetadata(function(kind,id,value) send(kind,{key=id,value=value},metadataFields) end)
+            if GP.KoSDeaths then GP.KoSDeaths.EachObservation(function(r) send('E',r,deathFields) end) end
         end)
+        S.PumpTransfers()
     elseif message:sub(1,2)=='C|' then
         local key,gen=message:match('^C|([^|]+)|([^|]+)$'); key=key and decode(key); gen=gen and decode(gen)
         if key and gen then local c=K.claims[key]; if not c or c.gen~=gen or K.clock>=c.expires or peer<c.reporter then K.claims[key]={gen=gen,reporter=peer,expires=K.clock+5} end end
         local p=key and K.pending[key]; if p and gen==p.gen and peer<p.reporter then p.reporter=peer end
     else
-        local kind,id,index,count,chunk=message:match('^D|([LRMITHJAP])|(%d+)|(%d+)|(%d+)|(.*)$')
+        local kind,id,index,count,chunk=message:match('^D|([LRMITHJAPE])|(%d+)|(%d+)|(%d+)|(.*)$')
         index=tonumber(index); count=tonumber(count)
         if not kind or #id>10 or not count or count<1 or count>24 or not index or index<1 or index>count or #chunk>180 then return end
         local token=peer..':'..id; local part=S.parts[token]
@@ -159,9 +167,12 @@ function S.Message(message,distribution,sender)
         S.parts[token]=nil; local data=table.concat(part.chunks)
         K.statsRevision=(K.statsRevision or 0)+1
         local metadata=kind=='I' or kind=='T' or kind=='J' or kind=='A' or kind=='P'
-        local r=unpackRecord(data,metadata and metadataFields or kind=='L' and fields or kind=='M' and detailFields or rewardFields)
+        local r=unpackRecord(data,metadata and metadataFields or kind=='L' and fields or kind=='M' and detailFields or kind=='E' and deathFields or rewardFields)
         if not r then return end
-        if kind=='A' or kind=='P' then
+        if kind=='E' then
+            r.time=tonumber(r.time); r.previous=tonumber(r.previous)
+            if GP.KoSDeaths then GP.KoSDeaths.Merge(r,peer,distribution=='WHISPER') end
+        elseif kind=='A' or kind=='P' then
             local owner,stamp=r.key:match('^(.-):(%d+):%d+$')
             stamp=tonumber(stamp)
             if not owner or #r.key>220 or K.Name(owner)~=owner or K.Name(r.value)~=r.value
@@ -170,10 +181,6 @@ function S.Message(message,distribution,sender)
                 if distribution=='GUILD' and peer~=owner then return end
                 if distribution=='GUILD' or not K.store.killAuthors[r.key] then
                     K.store.killAuthors[r.key]=r.value
-                end
-                local own=K.Own()
-                if own and distribution=='GUILD' and K.WasNearby(owner,stamp) and addMember(r.key,own) then
-                    record('P',{key=r.key,value=own},metadataFields,nil,1)
                 end
             elseif distribution=='WHISPER' or peer==owner or peer==r.value then
                 addMember(r.key,r.value)
@@ -199,11 +206,19 @@ function S.Message(message,distribution,sender)
         else r.time=tonumber(r.time); K.Receipt(r) end
     end
 end
+function S.PumpTransfers()
+    for peer,transfer in pairs(S.transfers or {}) do
+        local ok=coroutine.resume(transfer)
+        if not ok or coroutine.status(transfer)=='dead' then S.transfers[peer]=nil end
+        if #S.queue>=512 then break end
+    end
+end
+
 function S.Update(elapsed)
     S.clock=S.clock+elapsed
     if not K.rows or not GP.IsEligibleGuild() then
-        K.pending={}; K.units={}; K.presence={}
-        S.queue={}; S.queued={}; S.parts={}; S.chat={}; S.reports={}
+        K.pending={}; K.units={}
+        S.queue={}; S.queued={}; S.parts={}; S.chat={}; S.reports={}; S.transfers={}
         return
     end
     if S.clock>=(S.nextQuery or math.huge) then S.nextQuery=S.clock+120; S.requested=nil; enqueue('Q|'..digest(),nil,3) end
@@ -215,6 +230,7 @@ function S.Update(elapsed)
             elseif GP.Comms.Send(prefix,e.payload,e.target) then table.remove(S.queue,1); S.queued[e.key]=nil end
         end
     end
+    if #S.queue<512 then S.PumpTransfers() end
     if S.clock<(S.nextChat or 0) then return end
     local report=S.reports and S.reports[1]
     if report then

@@ -41,11 +41,11 @@
 </p>
 <p class="lead">Collect cards from honorable kills. Rally your guildmates. Earn points for showing up when the fight finds them.</p>
 <div class="actions">
-<div class="download-action"><a class="button" href="https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.16-beta/Gondor_PvP.zip">Download beta <span aria-hidden="true">↓</span>
-</a><p class="meta updated">Last updated <time id="last-updated" datetime="2026-11-18T09:41:12Z">2026-11-18</time></p></div>
+<div class="download-action"><a class="button" href="https://github.com/GM-King/Gondor_pvp/releases/download/v0.9.17-beta/Gondor_PvP.zip">Download beta <span aria-hidden="true">↓</span>
+</a><p class="meta updated">Last updated <time id="last-updated" datetime="2026-11-20T01:27:19Z">2026-11-20</time></p></div>
 <a href="#guide">How to play ↘</a>
 </div>
-<p class="meta">WoW Forever · 0.9.16 beta · 78.1 MiB</p>
+<p class="meta">WoW Forever · 0.9.17 beta · 78.1 MiB</p>
 
 </div>
 <div class="sergeant-stage">
@@ -181,14 +181,14 @@
 <div>
 <span class="step">05 / MARK THE TARGET</span>
 <h3>Remember the name.<br>Recognise the threat.</h3>
-<p>Open <strong>Kill on Sight</strong> in the binder or type <code>/gpvp kos</code>. All Gondor Calls for Raid members with the updated addon share a list of up to <strong>100 Alliance targets</strong>. Changes sync between online guildmates, with catch-up when they return.</p>
+<p>Open <strong>Kill on Sight</strong> in the binder or type <code>/gpvp kos</code>. All Gondor Calls for Raid members with the updated addon share a list of up to <strong>200 Alliance targets</strong>. Changes sync between online guildmates, with catch-up when they return.</p>
 <p><strong>Right-click an Alliance character portrait → Gondor KoS</strong> to add them. Give a reason of up to <strong>100 characters</strong>; the original reason stays read-only. A crosshair marks listed target and focus portraits, including Z-Perl frames.</p>
-<p>Click a name to see the <strong>reason, who added them, race, class, last-seen level and a kill breakdown by guild member</strong>. Sort the aligned <strong>Name, Level, Last Seen and Total Kills</strong> columns; click again to reverse the order. Names use class colours, and the list has a draggable scrollbar. Kill totals cover the current listing: a fresh addition resets the total, while Undo preserves it. Earned points remain intact. Older entries show unknown attributes until someone sees the target again.</p>
-<p>The movable <strong>KoS Targets</strong> box shows nearby targets as clickable head portraits. Version 0.9.15 fixes portrait targeting for Forever’s two-part character names. Close it to dismiss the current encounter, or reopen it with <strong>Show nearby targets</strong> in the KoS window.</p>
+<p>Click a name to see the <strong>reason, who added them, race, class, last-seen level and a log of individual kills</strong>. Sort the aligned <strong>Name, Level, Last Seen and Total Kills</strong> columns; click again to reverse the order. Names use class colours, and the list has a draggable scrollbar. Kill totals cover the current listing: a fresh addition resets the total, while Undo preserves it. Earned points remain intact. Older entries show unknown attributes until someone sees the target again.</p>
+<p>The movable <strong>KoS Targets</strong> box shows nearby targets as head portraits. Newly spotted enemies can appear during combat, and their portraits become clickable when combat ends. Close it to dismiss the current encounter, or reopen it with <strong>Show nearby targets</strong> in the KoS window.</p>
 <p>Spot an identifiable, living target nearby in the open world and hear a <strong>local warning sound</strong>. Sightings are announced in <code>gcfrpvp</code>, limited to once per target every <strong>ten minutes</strong>. Each encountering member has their own sound warning and can turn it off in the KoS window.</p>
-<p>A verified killing blow by you or your pet earns <strong>5 PvP points</strong> and announces the kill in <code>gcfrpvp</code>. Each distinct later kill can earn another five. Alerts and rewards operate in the open world; if Forever hides the required kill evidence, no points are awarded.</p>
-<p>Each verified death counts once on the target’s record. Guildmates the client can confirm within <strong>40 yards</strong> of the killer also receive credit in the guild kill breakdown. Use <strong>Kill Leaderboard</strong> to post the top five guildmates to guild chat, or <strong>Latest Kill</strong> to report who earned credit for the latest kill today, who they killed, how long ago and who originally added the target.</p>
-<p>Right-click the minimap icon to open <strong>Personal KoS</strong>, a private list shared by your characters on the same realm. Verified targets can be pushed to the Guild KoS list.</p>
+<p>When a Guild KoS target dies in the open world, each guildmate the client can verify within <strong>40 yards of the enemy</strong> earns <strong>5 PvP points</strong>. Pet kills count too. Gondor announces the death in <code>gcfrpvp</code>.</p>
+<p>Each verified death counts once on the target’s record, even when several guildmates receive credit. Use <strong>Kill Leaderboard</strong> to post the top five guildmates to guild chat, or <strong>Latest Kill</strong> to report who earned credit for the latest kill today, who they killed, how long ago and who originally added the target.</p>
+<p>Right-click the minimap icon to open <strong>Personal KoS</strong>, a private list shared by your characters on the same realm. Verified targets can be pushed to the Guild KoS list. Deaths of personal-only targets stay private and award no points.</p>
 <p><strong>Delete</strong> asks for confirmation and announces who removed the target in <code>gcfrpvp</code>. The deleting player has <strong>60 seconds to Undo</strong>, including across a reload. Restoring an entry preserves its original reason, contributor, details and sighting time, and announces the restoration. Undo needs a free list slot.</p>
 <aside class="note">Targets unseen by the guild for <strong>ten days</strong> are automatically removed. Automatic expiry is quiet and preserves earned points. Manual deletions can be undone using the popup or <strong>Undo deletes</strong>.</aside>
 </div>
@@ -199,20 +199,20 @@
 <div><span class="step">TARGET DETAILS / GUILD KILLS</span>
 <h3>Read the reason.<br>See who got the kill.</h3>
 <p>Click a target name to open a compact details card. The target's name uses their class colour, with race, class, level and last-seen information directly beneath it.</p>
-<p>A contrasting <strong>Reason</strong> panel and separate <strong>Added By</strong> heading make the original listing easy to read. The <strong>Guild Kill Breakdown</strong> shows labelled <strong>Guildmate</strong> and <strong>Kills</strong> columns, class-coloured guildmates when roster information is available, and a total above the table.</p>
-<p>Drag the table's scrollbar or use the mouse wheel to see more guildmates. Counts are ordered from most kills to fewest and cover this target's current listing.</p></div>
-<figure><a class="details-preview" href="assets/kos-details.png" data-preview><img src="assets/kos-details.png" width="500" height="548" loading="lazy" alt="Target details showing a contrasting Reason panel, Added By heading, Guild Kill Breakdown with Guildmate and Kills columns, class colours and scrollbar"></a><figcaption>Offline layout illustration <span>KoS target details · Click to enlarge ↗</span></figcaption></figure>
+<p>A contrasting <strong>Reason</strong> panel and separate <strong>Added By</strong> heading make the original listing easy to read. The <strong>Kill Log</strong> shows one line per death, with the time and every credited character separated by commas.</p>
+<p>Scroll down for older deaths and across for long lines of names. Guild history covers the current listing.</p></div>
+<figure><a class="details-preview" href="assets/kos-details.png" data-preview><img src="assets/kos-details.png" width="500" height="548" loading="lazy" alt="Earlier version of the target details window showing the Reason panel and Added By heading"></a><figcaption>Earlier offline layout illustration <span>KoS target details · Click to enlarge ↗</span></figcaption></figure>
 </article>
 </section>
 <section class="beta wrap">
 <div>
-<p class="eyebrow">BETA 0.9.16</p>
+<p class="eyebrow">BETA 0.9.17</p>
 <h2>Still sharpening the axe.</h2>
 </div>
 <div>
-<p>Offline checks pass. Live-client gameplay verification is pending. Death detection, channel delivery, map pins, precise positioning and KoS killing-blow verification depend on the APIs available in Forever. Test these with guildmates before relying on rewards.</p>
+<p>Offline checks pass. Live-client gameplay verification is pending. Death detection, channel delivery, map pins, precise positioning and KoS death and distance verification depend on the APIs available in Forever. Test these with guildmates before relying on rewards.</p>
 <div class="links">
-<a href="https://github.com/GM-King/Gondor_pvp/releases/tag/v0.9.16-beta">Release notes ↗</a>
+<a href="https://github.com/GM-King/Gondor_pvp/releases/tag/v0.9.17-beta">Release notes ↗</a>
 <a href="https://github.com/GM-King/Gondor_pvp/issues">Report an issue ↗</a>
 </div>
 </div>

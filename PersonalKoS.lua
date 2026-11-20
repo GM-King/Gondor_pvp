@@ -1,6 +1,6 @@
 local _, GP = ...
 local K = GP.KoS
-local P = {encounters = {}, units = {}, deaths = {}, revision = 0}
+local P = {encounters = {}, revision = 0}
 GP.PersonalKoS = P
 local safe = K.Safe
 
@@ -83,14 +83,9 @@ end
 function P.Observe(unit)
     if not P.rows or GP.Network.InInstance() then return end
     local id=K.Identity(unit)
-    if id and id.guid and P.deaths[id.guid] then
-        local death=P.deaths[id.guid]
-        if safe(UnitIsDeadOrGhost,unit)==true then death.corpse=true
-        elseif death.corpse or K.Now()-death.at>=30 then P.deaths[id.guid]=nil end
-    end
     if not id or type(id.guid)~='string' or not id.guid:match('^Player%-') or safe(UnitIsVisible,unit)~=true or safe(UnitIsDeadOrGhost,unit)~=false then return end
     local key=K.Name(id.name); if not key then return end
-    P.encounters[key]=id; P.units[id.guid]=key
+    P.encounters[key]=id
     local row=P.rows[key]
     if row then
         if not row.verified or row.guid~=id.guid then P.Verify(row,id) end
@@ -109,29 +104,32 @@ function P.Receipt(receipt)
     end
 end
 
+function P.EachKill(key,visit)
+    local row=P.rows[key]
+    for _,receipt in pairs(row and row.history or {}) do
+        if K.ValidReceipt(receipt) then visit(receipt) end
+    end
+    if row and GP.KoSDeaths then GP.KoSDeaths.Each(key,visit) end
+end
+
 function P.Stats(key)
     local cached=P.statsCache
-    if cached and cached.key==key and cached.revision==P.revision then return cached.total,cached.players end
-    local row=P.rows[key]; local total,counts=0,{}
-    for _,receipt in pairs(row and row.history or {}) do
-        if K.ValidReceipt(receipt) then total=total+1; counts[receipt.owner]=(counts[receipt.owner] or 0)+1 end
-    end
+    if cached and cached.key==key and cached.revision==P.revision and cached.guildRevision==K.statsRevision then return cached.total,cached.players end
+    local total,counts=0,{}
+    P.EachKill(key,function(receipt)
+        total=total+1
+        K.EachCredited(receipt,function(name) counts[name]=(counts[name] or 0)+1 end)
+    end)
     local players={}
     for name,count in pairs(counts) do players[#players+1]={name=name,count=count} end
     table.sort(players,function(a,b) if a.count~=b.count then return a.count>b.count end; return a.name<b.name end)
-    P.statsCache={key=key,revision=P.revision,total=total,players=players}
+    P.statsCache={key=key,revision=P.revision,guildRevision=K.statsRevision,total=total,players=players}
     return total,players
 end
 
-function P.Kill(attacker,victim)
-    if GP.Network.InInstance() or (issecretvalue and (issecretvalue(attacker) or issecretvalue(victim))) then return end
-    if type(victim)~='string' or type(attacker)~='string' then return end
-    if attacker~=safe(UnitGUID,'player') and attacker~=safe(UnitGUID,'pet') then return end
-    local key=P.units[victim]; local row=key and P.rows[key]
-    if not row or P.deaths[victim] or (GP.IsEligibleGuild() and K.Active(K.rows[key])) then return end
-    P.deaths[victim]={at=K.Now()}; P.store.sequence=P.store.sequence+1
-    local receipt={id='personal:'..K.Own()..':'..K.Now()..':'..P.store.sequence,owner=K.Own(),victim=key,time=K.Now()}
-    P.Receipt(receipt)
+function P.RecordDeath(key, owner, stamp)
+    P.store.sequence=P.store.sequence+1
+    P.Receipt({id='personal:'..owner..':'..stamp..':'..P.store.sequence,owner=owner,victim=key,time=stamp})
 end
 
 function P.Push(key)
@@ -168,11 +166,10 @@ function P.AddBoth(identity,reason)
 end
 
 local frame=CreateFrame('Frame')
-for _,event in ipairs({'PLAYER_LOGIN','PLAYER_TARGET_CHANGED','PLAYER_FOCUS_CHANGED','UPDATE_MOUSEOVER_UNIT','NAME_PLATE_UNIT_ADDED','PARTY_KILL'}) do frame:RegisterEvent(event) end
+for _,event in ipairs({'PLAYER_LOGIN','PLAYER_TARGET_CHANGED','PLAYER_FOCUS_CHANGED','UPDATE_MOUSEOVER_UNIT','NAME_PLATE_UNIT_ADDED'}) do frame:RegisterEvent(event) end
 frame:SetScript('OnEvent',function(_,event,a,b)
     if event=='PLAYER_LOGIN' then P.Init() end
     if not P.rows then return end
-    if event=='PARTY_KILL' then P.Kill(a,b)
-    elseif event=='NAME_PLATE_UNIT_ADDED' then P.Observe(a)
+    if event=='NAME_PLATE_UNIT_ADDED' then P.Observe(a)
     else P.Observe('target'); P.Observe('focus'); P.Observe('mouseover') end
 end)
